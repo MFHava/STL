@@ -70,6 +70,19 @@ public:
     basic_stringbuf(basic_stringbuf&& _Right, const _Alloc& _Al_) : _Al(_Al_) {
         _Assign_rv(_STD move(_Right));
     }
+#ifdef __cpp_lib_sstream_from_string_view
+    explicit basic_stringbuf(const _Elem* _Str, ios_base::openmode _Mode = ios_base::in | ios_base::out) {
+        _Init(_Str, _Traits::length(_Str), _Getstate(_Mode));
+    }
+    explicit basic_stringbuf(_Mystr_view _Str, ios_base::openmode _Mode = ios_base::in | ios_base::out) {
+        _Init(_Str.data(), _Str.size(), _Getstate(_Mode));
+    }
+    basic_stringbuf(_Mystr_view _Str, const _Alloc & _Al_) : basic_stringbuf(_Str, ios_base::in | ios_base::out, _Al_) {}
+    basic_stringbuf(_Mystr_view _Str, ios_base::openmode _Mode, const _Alloc& _Al_)
+        : _Al(_Al_) {
+        _Init(_Str.data(), _Str.size(), _Getstate(_Mode));
+    }
+#endif
 #endif // _HAS_CXX20
 
     basic_stringbuf(basic_stringbuf&& _Right) {
@@ -220,6 +233,17 @@ public:
         _Pocma(_Al, _Newstr_al);
         _Init_string_inplace(_STD move(_Newstr), _Mystate);
     }
+
+#ifdef __cpp_lib_sstream_from_string_view
+    void str(const _Elem* _Newstr) {
+        _Tidy();
+        _Init(_Newstr, _Traits::length(_Newstr), _Mystate);
+    }
+    void str(_Mystr_view _Newstr) {
+        _Tidy();
+        _Init(_Newstr.data(), _Newstr.size(), _Mystate);
+    }
+#endif
 
     _NODISCARD allocator_type get_allocator() const noexcept {
         return _Al;
@@ -574,6 +598,15 @@ public:
     explicit basic_istringstream(
         const basic_string<_Elem, _Traits, _Alloc2>& _Str, ios_base::openmode _Mode = ios_base::in)
         : _Mybase(_STD addressof(_Stringbuffer)), _Stringbuffer(_Str, _Mode | ios_base::in) {}
+#ifdef __cpp_lib_sstream_from_string_view
+    explicit basic_istringstream(const _Elem* _Str, ios_base::openmode _Mode = ios_base::in)
+        : _Mybase(_STD addressof(_Stringbuffer)), _Stringbuffer(_Str, _Mode | ios_base::in) {}
+    explicit basic_istringstream(_Mystr_view _Str, ios_base::openmode _Mode = ios_base::in)
+        : _Mybase(_STD addressof(_Stringbuffer)), _Stringbuffer(_Str, _Mode | ios_base::in) {}
+    basic_istringstream(_Mystr_view _Str, const _Alloc & _Al) : basic_istringstream(_Str, ios_base::in, _Al) {}
+    basic_istringstream(_Mystr_view _Str, ios_base::openmode _Mode, const _Alloc& _Al)
+        : _Mybase(_STD addressof(_Stringbuffer)), _Stringbuffer(_Str, _Mode | ios_base::in, _Al) {}
+#endif
 #endif // _HAS_CXX20
 
     basic_istringstream(basic_istringstream&& _Right) : _Mybase(_STD addressof(_Stringbuffer)) {
@@ -643,6 +676,14 @@ public:
     void str(_Mystr&& _Newstr) {
         _Stringbuffer.str(_STD move(_Newstr));
     }
+#ifdef __cpp_lib_sstream_from_string_view
+    void str(const _Elem* _Newstr) {
+        _Stringbuffer.str(_Newstr);
+    }
+    void str(_Mystr_view _Newstr) {
+        _Stringbuffer.str(_Newstr);
+    }
+#endif
 #endif // _HAS_CXX20
 
 private:
@@ -693,6 +734,15 @@ public:
     explicit basic_ostringstream(
         const basic_string<_Elem, _Traits, _Alloc2>& _Str, ios_base::openmode _Mode = ios_base::out)
         : _Mybase(_STD addressof(_Stringbuffer)), _Stringbuffer(_Str, _Mode | ios_base::out) {}
+#ifdef __cpp_lib_sstream_from_string_view
+    explicit basic_ostringstream(const _Elem* _Str, ios_base::openmode _Mode = ios_base::out)
+        : _Mybase(_STD addressof(_Stringbuffer)), _Stringbuffer(_Str, _Mode | ios_base::out) {}
+    explicit basic_ostringstream(_Mystr_view _Str, ios_base::openmode _Mode = ios_base::out)
+        : _Mybase(_STD addressof(_Stringbuffer)), _Stringbuffer(_Str, _Mode | ios_base::out) {}
+    basic_ostringstream(_Mystr_view _Str, const _Alloc & _Al) : basic_ostringstream(_Str, ios_base::out, _Al) {}
+    basic_ostringstream(_Mystr_view _Str, ios_base::openmode _Mode, const _Alloc& _Al)
+        : _Mybase(_STD addressof(_Stringbuffer)), _Stringbuffer(_Str, _Mode | ios_base::out, _Al) {}
+#endif
 #endif // _HAS_CXX20
 
     basic_ostringstream(basic_ostringstream&& _Right) : _Mybase(_STD addressof(_Stringbuffer)) {
@@ -762,6 +812,14 @@ public:
     void str(_Mystr&& _Newstr) {
         _Stringbuffer.str(_STD move(_Newstr));
     }
+#ifdef __cpp_lib_sstream_from_string_view
+    void str(const _Elem* _Newstr) {
+        _Stringbuffer.str(_Newstr);
+    }
+    void str(_Mystr_view _Newstr) {
+        _Stringbuffer.str(_Newstr);
+    }
+#endif
 #endif // _HAS_CXX20
 
 private:
@@ -818,6 +876,15 @@ public:
     explicit basic_stringstream(
         const basic_string<_Elem, _Traits, _Alloc2>& _Str, ios_base::openmode _Mode = ios_base::in | ios_base::out)
         : _Mybase(_STD addressof(_Stringbuffer)), _Stringbuffer(_Str, _Mode) {}
+#ifdef __cpp_lib_sstream_from_string_view
+    explicit basic_stringstream(const _Elem* _Str, ios_base::openmode _Mode = ios_base::in | ios_base::out)
+        : _Mybase(_STD addressof(_Stringbuffer)), _Stringbuffer(_Str, _Mode) {}
+    explicit basic_stringstream(_Mystr_view _Str, ios_base::openmode _Mode = ios_base::in | ios_base::out)
+        : _Mybase(_STD addressof(_Stringbuffer)), _Stringbuffer(_Str, _Mode) {}
+    basic_stringstream(_Mystr_view _Str, const _Alloc & _Al) : basic_stringstream(_Str, ios_base::in | ios_base::out, _Al) {}
+    basic_stringstream(_Mystr_view _Str, ios_base::openmode _Mode, const _Alloc& _Al)
+        : _Mybase(_STD addressof(_Stringbuffer)), _Stringbuffer(_Str, _Mode, _Al) {}
+#endif
 #endif // _HAS_CXX20
 
     basic_stringstream(basic_stringstream&& _Right) : _Mybase(_STD addressof(_Stringbuffer)) {
@@ -887,6 +954,14 @@ public:
     void str(_Mystr&& _Newstr) {
         _Stringbuffer.str(_STD move(_Newstr));
     }
+#ifdef __cpp_lib_sstream_from_string_view
+    void str(const _Elem* _Newstr) {
+        _Stringbuffer.str(_Newstr);
+    }
+    void str(_Mystr_view _Newstr) {
+        _Stringbuffer.str(_Newstr);
+    }
+#endif
 #endif // _HAS_CXX20
 
 private:
