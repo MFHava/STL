@@ -37,7 +37,9 @@
 
 #define _HAS_DEPRECATED_RESULT_OF 1
 #define _SILENCE_CXX17_RESULT_OF_DEPRECATION_WARNING
+#define _SILENCE_CXX20_CISO646_REMOVED_WARNING
 #define _SILENCE_CXX20_VOLATILE_DEPRECATION_WARNING
+#define _SILENCE_CXX23_ALIGNED_UNION_DEPRECATION_WARNING
 #define _LIBCXX_IN_DEVCRT
 #include <msvc_stdlib_force_include.h> // Must precede any other libc++ headers
 
@@ -4693,13 +4695,13 @@ void test_T_ctor_basic() {
 }
 
 #if !_HAS_CXX20 // Narrowing check occurs with P0608R3
-struct BoomOnAnything {
+struct FailOnAnything {
   template <class T>
-  constexpr BoomOnAnything(T) { static_assert(!std::is_same<T, T>::value, ""); }
+  constexpr FailOnAnything(T) { static_assert(!std::is_same<T, T>::value, ""); }
 };
 
 void test_no_narrowing_check_for_class_types() {
-  using V = std::variant<int, BoomOnAnything>;
+  using V = std::variant<int, FailOnAnything>;
   V v(42);
   assert(v.index() == 0);
   assert(std::get<0>(v) == 42);
@@ -6580,8 +6582,8 @@ namespace msvc {
 
     template <class Fn>
     struct immobile_visitor : mobile_visitor<Fn> {
-        immobile_visitor()                        = default;
-        immobile_visitor(const immobile_visitor&) = delete;
+        immobile_visitor()                                   = default;
+        immobile_visitor(const immobile_visitor&)            = delete;
         immobile_visitor& operator=(const immobile_visitor&) = delete;
     };
 
@@ -6872,7 +6874,7 @@ namespace msvc {
                 ASSERT_SAME_TYPE(decltype(cb), const simple_base&);
                 assert(cb.x == 42);
                 auto&& rb = std::visit<simple_base&&>(std::identity{}, std::move(v));
-                ASSERT_SAME_TYPE(decltype(rb), simple_base&&);
+                ASSERT_SAME_TYPE(decltype(rb), simple_base &&);
                 assert(rb.x == 42);
                 auto&& crb = std::visit<const simple_base&&>(std::identity{}, std::move(std::as_const(v)));
                 ASSERT_SAME_TYPE(decltype(crb), const simple_base&&);
@@ -6959,7 +6961,7 @@ namespace msvc {
 
         struct immobile_data : mobile_data {
             using mobile_data::mobile_data;
-            immobile_data(const immobile_data&) = delete;
+            immobile_data(const immobile_data&)            = delete;
             immobile_data& operator=(const immobile_data&) = delete;
         };
 
@@ -6969,6 +6971,28 @@ namespace msvc {
                 using R = immobile_data;
                 assert(std::visit<R>(std::identity{}, std::variant<int, short>{13}).x == 13);
                 assert(std::visit<R>(std::identity{}, std::variant<int, short>{short{42}}).x == 42);
+
+                // Verify that conversions to an object that can't be copied/moved are correctly handled
+                struct convertible_to_immobile_one {
+                    operator immobile_data() const {
+                        return immobile_data{1729};
+                    }
+                };
+
+                struct convertible_to_immobile_other {
+                    operator immobile_data() const {
+                        return immobile_data{1138};
+                    }
+                };
+
+                using VarTestConv = std::variant<convertible_to_immobile_one, convertible_to_immobile_other>;
+#if defined(__clang__) || defined(__EDG__) // TRANSITION, DevCom-10111923 and DevCom-10112408
+                assert(std::visit<R>(std::identity{}, VarTestConv{convertible_to_immobile_one{}}).x == 1729);
+                assert(std::visit<R>(std::identity{}, VarTestConv{convertible_to_immobile_other{}}).x == 1138);
+#endif // TRANSITION, DevCom-10111923 and DevCom-10112408
+                auto immobile_converter = [](auto src) -> immobile_data { return src; };
+                assert(std::visit<R>(immobile_converter, VarTestConv{convertible_to_immobile_one{}}).x == 1729);
+                assert(std::visit<R>(immobile_converter, VarTestConv{convertible_to_immobile_other{}}).x == 1138);
             }
             {
                 // Verify that a returned object is not copied/moved/modified
@@ -7023,6 +7047,28 @@ namespace msvc {
         void run_test() {}
 #endif // _HAS_CXX20
     } // namespace visit_R
+
+    namespace visit_pointer_to_member {
+        struct base {
+            int x;
+
+            int f() const {
+                return x;
+            }
+        };
+        struct derived : base {
+            int y;
+        };
+
+        void run_test() {
+            using V = std::variant<base, derived>;
+            assert(std::visit(&base::x, V{base{13}}) == 13);
+            assert(std::visit(&base::x, V{derived{{42}, 29}}) == 42);
+
+            assert(std::visit(&base::f, V{base{13}}) == 13);
+            assert(std::visit(&base::f, V{derived{{42}, 29}}) == 42);
+        }
+    } // namespace visit_pointer_to_member
 
     template <class, class = void>
     inline constexpr bool has_type = false;
@@ -7098,6 +7144,25 @@ namespace msvc {
             Overload(42);
         }
     } // namespace DevCom1031281
+
+    namespace gh2770 {
+        // Previous metaprogramming to validate the type requirements for std::visit required typelists too long for
+        // Clang.
+        struct S {
+            template <class T0, class T1, class T2, class T3, class T4>
+            int operator()(T0, T1, T2, T3, T4) const {
+                return 1729;
+            }
+        };
+
+        void run_test() {
+            using V = std::variant<char, int, long, long long>;
+            assert(std::visit(S{}, V{'a'}, V{'b'}, V{10}, V{20L}, V{30LL}) == 1729);
+#if _HAS_CXX20
+            assert(std::visit<int>(S{}, V{'a'}, V{'b'}, V{10}, V{20L}, V{30LL}) == 1729);
+#endif // _HAS_CXX20
+        }
+    } // namespace gh2770
 } // namespace msvc
 
 int main() {
@@ -7155,9 +7220,11 @@ int main() {
     msvc::derived_variant::run_test();
     msvc::visit::run_test();
     msvc::visit_R::run_test();
+    msvc::visit_pointer_to_member::run_test();
 
     msvc::vso468746::run_test();
     msvc::vso508126::run_test();
     msvc::vso492097::run_test();
     msvc::DevCom1031281::run_test();
+    msvc::gh2770::run_test();
 }

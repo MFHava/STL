@@ -9,8 +9,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <assert.h>
 #include <bitset>
+#include <cassert>
 #include <concepts>
 #include <cstddef>
 #include <cstdio>
@@ -62,23 +62,23 @@ struct DoNotInstantiate {
 };
 
 struct Immobile {
-    Immobile()                = default;
-    Immobile(Immobile const&) = delete;
+    Immobile()                           = default;
+    Immobile(Immobile const&)            = delete;
     Immobile& operator=(Immobile const&) = delete;
 };
 
 struct MoveOnly {
-    MoveOnly()           = default;
-    MoveOnly(MoveOnly&&) = default;
+    MoveOnly()                      = default;
+    MoveOnly(MoveOnly&&)            = default;
     MoveOnly& operator=(MoveOnly&&) = default;
 };
 
 struct CopyOnlyAbomination {
-    CopyOnlyAbomination()                           = default;
-    CopyOnlyAbomination(CopyOnlyAbomination const&) = default;
-    CopyOnlyAbomination(CopyOnlyAbomination&&)      = delete;
+    CopyOnlyAbomination()                                      = default;
+    CopyOnlyAbomination(CopyOnlyAbomination const&)            = default;
+    CopyOnlyAbomination(CopyOnlyAbomination&&)                 = delete;
     CopyOnlyAbomination& operator=(CopyOnlyAbomination const&) = default;
-    CopyOnlyAbomination& operator=(CopyOnlyAbomination&&) = delete;
+    CopyOnlyAbomination& operator=(CopyOnlyAbomination&&)      = delete;
 };
 
 struct CopyableType {
@@ -536,6 +536,15 @@ namespace test_convertible_to {
     STATIC_ASSERT(convertible_to<char_array, ConvertsFrom<char const*>>);
     STATIC_ASSERT(convertible_to<char (&)[], ConvertsFrom<char const*>>);
 
+    // volatile array glvalues
+#if defined(__clang__) || defined(__EDG__) // TRANSITION, DevCom-1627396
+    STATIC_ASSERT(convertible_to<int volatile (&)[42], int volatile (&)[42]>);
+    STATIC_ASSERT(convertible_to<int volatile (&)[42][13], int volatile (&)[42][13]>);
+#endif // TRANSITION, DevCom-1627396
+    STATIC_ASSERT(convertible_to<int volatile (&&)[42], int volatile (&&)[42]>);
+    STATIC_ASSERT(convertible_to<int volatile (&&)[42][13], int volatile (&&)[42][13]>);
+
+
     // char
     STATIC_ASSERT(!test<char, void>());
     STATIC_ASSERT(!test<char, fn>());
@@ -709,6 +718,14 @@ namespace test_common_reference_with {
     STATIC_ASSERT(!test<Interconvertible<0>&, Interconvertible<1> const&>());
 
     STATIC_ASSERT(test<SimpleBase, ConvertsFrom<int, SimpleBase>>());
+
+    STATIC_ASSERT(test<int volatile&, int volatile&>());
+#if defined(__clang__) || defined(__EDG__) // TRANSITION, DevCom-1627396
+    STATIC_ASSERT(test<int volatile (&)[42], int volatile (&)[42]>());
+    STATIC_ASSERT(test<int volatile (&)[42][13], int volatile (&)[42][13]>());
+#endif // TRANSITION, DevCom-1627396
+    STATIC_ASSERT(test<int volatile (&&)[42], int volatile (&&)[42]>());
+    STATIC_ASSERT(test<int volatile (&&)[42][13], int volatile (&&)[42][13]>());
 } // namespace test_common_reference_with
 
 namespace test_common_with {
@@ -1310,10 +1327,10 @@ namespace test_constructible_from {
 
     STATIC_ASSERT(test<void (&)(), void()>());
     STATIC_ASSERT(test<void (&)(), void (&)()>());
-    STATIC_ASSERT(test<void (&)(), void(&&)()>());
-    STATIC_ASSERT(test<void(&&)(), void()>());
-    STATIC_ASSERT(test<void(&&)(), void (&)()>());
-    STATIC_ASSERT(test<void(&&)(), void(&&)()>());
+    STATIC_ASSERT(test<void (&)(), void (&&)()>());
+    STATIC_ASSERT(test<void (&&)(), void()>());
+    STATIC_ASSERT(test<void (&&)(), void (&)()>());
+    STATIC_ASSERT(test<void (&&)(), void (&&)()>());
 
     STATIC_ASSERT(test<int&&, double&>());
 
@@ -1640,10 +1657,10 @@ namespace test_ranges_swap {
     STATIC_ASSERT(!can_swap<int()>);
     STATIC_ASSERT(!can_swap<int() const>);
     STATIC_ASSERT(!can_swap<int (&)()>);
-    STATIC_ASSERT(!can_swap<int(&&)()>);
+    STATIC_ASSERT(!can_swap<int (&&)()>);
 
     STATIC_ASSERT(!can_swap<int (&)[]>);
-    STATIC_ASSERT(!can_swap<int(&&)[]>);
+    STATIC_ASSERT(!can_swap<int (&&)[]>);
 
     STATIC_ASSERT(can_nothrow_swap<int (&)[42]>);
     STATIC_ASSERT(can_nothrow_swap<int (&)[42][13]>);
@@ -1655,10 +1672,10 @@ namespace test_ranges_swap {
     STATIC_ASSERT(can_nothrow_swap<int volatile (&)[42][13]>);
     STATIC_ASSERT(!can_swap<int const volatile (&)[42][13]>);
 
-    STATIC_ASSERT(!can_swap<int(&&)[42]>);
-    STATIC_ASSERT(!can_swap<int(&&)[42][13]>);
+    STATIC_ASSERT(!can_swap<int (&&)[42]>);
+    STATIC_ASSERT(!can_swap<int (&&)[42][13]>);
 
-    STATIC_ASSERT(!can_swap<int(&&)[42][13], int(&&)[13][42]>);
+    STATIC_ASSERT(!can_swap<int (&&)[42][13], int (&&)[13][42]>);
 
     struct SemithrowCopyOnly {
         SemithrowCopyOnly()                                  = default;
@@ -1684,31 +1701,31 @@ namespace test_ranges_swap {
     STATIC_ASSERT(!can_nothrow_swap<SemithrowMoveOnly (&)[42]>);
 
     struct NothrowMoveOnly {
-        NothrowMoveOnly()                           = default;
-        NothrowMoveOnly(NothrowMoveOnly&&) noexcept = default;
+        NothrowMoveOnly()                                      = default;
+        NothrowMoveOnly(NothrowMoveOnly&&) noexcept            = default;
         NothrowMoveOnly& operator=(NothrowMoveOnly&&) noexcept = default;
     };
     STATIC_ASSERT(can_nothrow_swap<NothrowMoveOnly&>);
     STATIC_ASSERT(can_nothrow_swap<NothrowMoveOnly (&)[42]>);
 
     struct NotMoveConstructible {
-        NotMoveConstructible()                       = default;
-        NotMoveConstructible(NotMoveConstructible&&) = delete;
+        NotMoveConstructible()                                  = default;
+        NotMoveConstructible(NotMoveConstructible&&)            = delete;
         NotMoveConstructible& operator=(NotMoveConstructible&&) = default;
     };
     STATIC_ASSERT(!can_swap<NotMoveConstructible&>);
     STATIC_ASSERT(!can_swap<NotMoveConstructible (&)[42]>);
 
     struct NotMoveAssignable {
-        NotMoveAssignable(NotMoveAssignable&&) = default;
+        NotMoveAssignable(NotMoveAssignable&&)            = default;
         NotMoveAssignable& operator=(NotMoveAssignable&&) = delete;
     };
     STATIC_ASSERT(!can_swap<NotMoveAssignable&>);
     STATIC_ASSERT(!can_swap<NotMoveAssignable (&)[42]>);
 
     struct ImmobileNothrowSwap {
-        ImmobileNothrowSwap()                      = default;
-        ImmobileNothrowSwap(ImmobileNothrowSwap&&) = delete;
+        ImmobileNothrowSwap()                                 = default;
+        ImmobileNothrowSwap(ImmobileNothrowSwap&&)            = delete;
         ImmobileNothrowSwap& operator=(ImmobileNothrowSwap&&) = delete;
         friend void swap(ImmobileNothrowSwap&, ImmobileNothrowSwap&) noexcept {}
     };
@@ -1735,13 +1752,13 @@ namespace test_ranges_swap {
     STATIC_ASSERT(!can_swap<Unswappable (&)[42][13]>);
     STATIC_ASSERT(!can_swap<Unswappable (&)[42][13], Unswappable (&)[13][42]>);
 
-    STATIC_ASSERT(!can_swap<Unswappable(&&)[42]>);
-    STATIC_ASSERT(!can_swap<Unswappable(&&)[42][13]>);
-    STATIC_ASSERT(!can_swap<Unswappable(&&)[42][13], Unswappable(&&)[13][42]>);
+    STATIC_ASSERT(!can_swap<Unswappable (&&)[42]>);
+    STATIC_ASSERT(!can_swap<Unswappable (&&)[42][13]>);
+    STATIC_ASSERT(!can_swap<Unswappable (&&)[42][13], Unswappable (&&)[13][42]>);
 
     // The wording allows customization of swap for unions as well
     union U {
-        U(U const&) = delete;
+        U(U const&)            = delete;
         U& operator=(U const&) = delete;
 
         friend void swap(U&, U&) {}
@@ -1791,7 +1808,7 @@ namespace test_ranges_swap {
         friend constexpr void swap(DoNotUseFallback&, DoNotUseFallback&) noexcept {}
     };
 
-    constexpr auto for_each_232 = [](auto (&array)[2][3][2], auto f) {
+    constexpr auto for_each_232 = [](auto(&array)[2][3][2], auto f) {
         for (int i = 0; i < 2; ++i) {
             for (int j = 0; j < 3; ++j) {
                 for (int k = 0; k < 2; ++k) {
@@ -2022,6 +2039,11 @@ namespace test_swappable_with {
     STATIC_ASSERT(!test<int (&)[3][4][1][2], int (&)[4][4][1][2]>());
 
     STATIC_ASSERT(test<int (&)[2][2], int (&)[2][2]>());
+
+#if defined(__clang__) || defined(__EDG__) // TRANSITION, DevCom-1627396
+    STATIC_ASSERT(test<int volatile (&)[4], int volatile (&)[4]>());
+    STATIC_ASSERT(test<int volatile (&)[3][4], int volatile (&)[3][4]>());
+#endif // TRANSITION, DevCom-1627396
 
     STATIC_ASSERT(test<MovableFriendSwap, MovableFriendSwap>() == is_permissive);
     STATIC_ASSERT(test<MovableFriendSwap&, MovableFriendSwap&>());

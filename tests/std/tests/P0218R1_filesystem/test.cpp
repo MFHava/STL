@@ -4,8 +4,10 @@
 #define _SILENCE_CXX20_U8PATH_DEPRECATION_WARNING
 #include <algorithm>
 #include <array>
-#include <assert.h>
+#include <cassert>
 #include <chrono>
+#include <cstdlib>
+#include <cstring>
 #include <cvt/cp1251>
 #include <cvt/sjis>
 #include <cvt/utf8_utf16>
@@ -18,8 +20,6 @@
 #include <memory>
 #include <optional>
 #include <sstream>
-#include <stdlib.h>
-#include <string.h>
 #include <string>
 #include <string_view>
 #include <system_error>
@@ -35,8 +35,8 @@ using namespace std::filesystem;
 
 constexpr wstring_view badPath = L"// ?? ?? ///// ?? ?? ? ////"sv;
 const path nonexistentPaths[]  = {
-    L"C:/This/Path/Should/Not/Exist"sv,
-    L"//this_path_does_not_exist_on_the_network_e9da301701f70ead24c65bd30f600d15/docs"sv,
+     L"C:/This/Path/Should/Not/Exist"sv,
+     L"//this_path_does_not_exist_on_the_network_e9da301701f70ead24c65bd30f600d15/docs"sv,
 };
 constexpr wstring_view longSuffix =
     LR"(really\long\path\longer\than\max_path\goes\here\and it just goes)"
@@ -482,12 +482,17 @@ constexpr compare_test_case compareTestCases[] = {
 bool run_compare_test_case(const compare_test_case& testCase) {
     const path leftPath(testCase.left);
     const path rightPath(testCase.right);
-    const int actualCmp = leftPath.compare(testCase.right); // string_view
+    const int actualCmp        = leftPath.compare(testCase.right); // string_view
+    const size_t leftPathHash  = hash_value(leftPath);
+    const size_t rightPathHash = hash_value(rightPath);
     // technically the standard only requires that these agree in sign, but our implementation
     // wants to always return the same value
     EXPECT(leftPath.compare(rightPath) == actualCmp); // const path&
     EXPECT(leftPath.compare(rightPath.native()) == actualCmp); // const string_type&
     EXPECT(leftPath.compare(rightPath.c_str()) == actualCmp); // const value_type *
+    // LWG-3657: hash<filesystem::path>::operator() returns the same value as filesystem::hash_value
+    EXPECT(hash<path>{}(leftPath) == leftPathHash);
+    EXPECT(hash<path>{}(rightPath) == rightPathHash);
     compare_result actual;
     if (actualCmp < 0) {
         actual = compare_result::less;
@@ -498,7 +503,7 @@ bool run_compare_test_case(const compare_test_case& testCase) {
         EXPECT(!(leftPath > rightPath));
         EXPECT(leftPath <= rightPath);
         EXPECT(!(leftPath >= rightPath));
-        EXPECT(hash_value(leftPath) != hash_value(rightPath)); // not required, but desirable
+        EXPECT(leftPathHash != rightPathHash); // not required, but desirable
     } else if (actualCmp > 0) {
         actual = compare_result::greater;
         EXPECT(rightPath.compare(testCase.left) < 0);
@@ -508,7 +513,7 @@ bool run_compare_test_case(const compare_test_case& testCase) {
         EXPECT(leftPath > rightPath);
         EXPECT(!(leftPath <= rightPath));
         EXPECT(leftPath >= rightPath);
-        EXPECT(hash_value(leftPath) != hash_value(rightPath)); // not required, but desirable
+        EXPECT(leftPathHash != rightPathHash); // not required, but desirable
     } else {
         actual = compare_result::equal;
         EXPECT(leftPath == rightPath);
@@ -517,7 +522,7 @@ bool run_compare_test_case(const compare_test_case& testCase) {
         EXPECT(!(leftPath > rightPath));
         EXPECT(leftPath <= rightPath);
         EXPECT(leftPath >= rightPath);
-        EXPECT(hash_value(leftPath) == hash_value(rightPath));
+        EXPECT(leftPathHash == rightPathHash);
     }
 
     if (testCase.expected == actual) {
@@ -991,7 +996,11 @@ void test_directory_entry() {
         EXPECT(!nonexistentEntryEc.exists());
         EXPECT(good(ec));
 
-        EXPECT(throws_filesystem_error([&] { nonexistentEntryEc.refresh(); }, "directory_entry::refresh", nonexistent));
+        // Also test GH-232 "<filesystem>: directory_entry(const path& p, error_code& ec) does not return error code"
+        nonexistentEntry.refresh();
+
+        nonexistentEntryEc.refresh(ec);
+        EXPECT(good(ec));
     }
 
     directory_entry goodEntry(filePath, ec);
@@ -1191,18 +1200,6 @@ void test_directory_entry() {
     EXPECT(good(ec));
     EXPECT(cachingEntry.is_regular_file(ec));
     EXPECT(good(ec));
-#if _HAS_CXX20
-    // break caching again, and assert that things aren't cached
-    cachingEntry.clear_cache();
-    EXPECT(cachingEntry.file_size(ec) == static_cast<uintmax_t>(-1));
-    EXPECT(bad(ec));
-    EXPECT(cachingEntry.last_write_time(ec) == file_time_type::min());
-    EXPECT(bad(ec));
-    EXPECT(cachingEntry.hard_link_count(ec) == static_cast<uintmax_t>(-1));
-    EXPECT(bad(ec));
-    EXPECT(!cachingEntry.is_regular_file(ec));
-    EXPECT(bad(ec));
-#endif // _HAS_CXX20
 
     // assert that mutating the path doesn't fail even though the target doesn't exist
     for (auto&& nonexistent : nonexistentPaths) {
@@ -3148,6 +3145,14 @@ void test_lexically_relative() {
 
     // LWG-3070
     EXPECT(path(LR"(\a:\b:)"sv).lexically_relative(LR"(\a:\c:)"sv).native() == LR"()"sv);
+
+    // LWG-3699
+    EXPECT(path(LR"(\\?\a:\meow)"sv).lexically_relative(LR"(\\?\a:\meow)"sv).native() == LR"(.)"sv);
+    EXPECT(path(LR"(\\?\a:\meow\purr\nyan)"sv).lexically_relative(LR"(\\?\a:\meow)"sv).native() == LR"(purr\nyan)"sv);
+    EXPECT(path(LR"(\\?\a:\meow)"sv).lexically_relative(LR"(\\?\a:\meow\purr\nyan)"sv).native() == LR"(..\..)"sv);
+    // UNC/DOS together should return an empty path
+    EXPECT(path(LR"(a:\meow)"sv).lexically_relative(LR"(\\?\a:\meow)"sv).native().empty());
+    EXPECT(path(LR"(\\?\a:\meow)"sv).lexically_relative(LR"(a:\meow)"sv).native().empty());
 }
 
 void test_lexically_proximate() {

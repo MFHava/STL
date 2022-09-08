@@ -9,7 +9,7 @@
 
 #include <algorithm>
 #include <array>
-#include <assert.h>
+#include <cassert>
 #ifndef _M_CEE_PURE
 #include <atomic>
 #endif // _M_CEE_PURE
@@ -29,11 +29,12 @@
 #ifndef _M_CEE
 #include <mutex>
 #endif // _M_CEE
+#include <cstdint>
 #include <new>
+#include <numeric>
 #include <random>
 #include <ratio>
 #include <regex>
-#include <stdint.h>
 #include <string>
 #include <system_error>
 #include <tuple>
@@ -43,6 +44,11 @@
 using namespace std;
 using namespace std::chrono;
 namespace RC = std::regex_constants;
+
+constexpr auto int32_min = numeric_limits<int32_t>::min();
+constexpr auto int32_max = numeric_limits<int32_t>::max();
+constexpr auto int64_min = numeric_limits<int64_t>::min();
+constexpr auto int64_max = numeric_limits<int64_t>::max();
 
 #define STATIC_ASSERT(...) static_assert(__VA_ARGS__, #__VA_ARGS__)
 
@@ -444,8 +450,8 @@ STATIC_ASSERT(ratio<252, 105>::num == 12);
 STATIC_ASSERT(ratio<252, 105>::den == 5);
 
 STATIC_ASSERT(duration_values<int32_t>::zero() == 0);
-STATIC_ASSERT(duration_values<int32_t>::min() == INT32_MIN);
-STATIC_ASSERT(duration_values<int32_t>::max() == INT32_MAX);
+STATIC_ASSERT(duration_values<int32_t>::min() == int32_min);
+STATIC_ASSERT(duration_values<int32_t>::max() == int32_max);
 
 constexpr seconds d1{};
 STATIC_ASSERT(d1.count() == 0);
@@ -463,8 +469,8 @@ constexpr milliseconds d5(d4);
 STATIC_ASSERT(d5.count() == 47000);
 
 STATIC_ASSERT(duration<int64_t>::zero().count() == 0);
-STATIC_ASSERT(duration<int64_t>::min().count() == INT64_MIN);
-STATIC_ASSERT(duration<int64_t>::max().count() == INT64_MAX);
+STATIC_ASSERT(duration<int64_t>::min().count() == int64_min);
+STATIC_ASSERT(duration<int64_t>::max().count() == int64_max);
 
 constexpr seconds d6(1700);
 constexpr seconds d7(29);
@@ -537,8 +543,8 @@ constexpr time_point<system_clock, seconds> tp2(16s);
 STATIC_ASSERT(tp2.time_since_epoch().count() == 16);
 constexpr time_point<system_clock, milliseconds> tp3(tp2);
 STATIC_ASSERT(tp3.time_since_epoch().count() == 16000);
-STATIC_ASSERT(time_point<system_clock, duration<int32_t>>::min().time_since_epoch().count() == INT32_MIN);
-STATIC_ASSERT(time_point<system_clock, duration<int32_t>>::max().time_since_epoch().count() == INT32_MAX);
+STATIC_ASSERT(time_point<system_clock, duration<int32_t>>::min().time_since_epoch().count() == int32_min);
+STATIC_ASSERT(time_point<system_clock, duration<int32_t>>::max().time_since_epoch().count() == int32_max);
 
 constexpr time_point<system_clock, seconds> tp4(1000s);
 constexpr time_point<system_clock, seconds> tp5(729s);
@@ -956,6 +962,27 @@ static_assert(hardware_constructive_interference_size == 64);
 static_assert(hardware_destructive_interference_size == 64);
 #endif // _HAS_CXX17
 
+// P0295R0 gcd(), lcm()
+constexpr bool test_gcd_lcm() {
+#if _HAS_CXX17
+    assert(gcd(0, 0) == 0);
+    assert(gcd(3125, 2401) == 1);
+    assert(gcd(3840, 2160) == 240);
+    assert(gcd(4096, 8192) == 4096);
+    assert(gcd(19937, 19937) == 19937);
+
+    assert(lcm(0, 0) == 0);
+    assert(lcm(0, 1729) == 0);
+    assert(lcm(1729, 0) == 0);
+    assert(lcm(1729, 1729) == 1729);
+    assert(lcm(4096, 8192) == 8192);
+    assert(lcm(1920, 1200) == 9600);
+    assert(lcm(25, 49) == 1225);
+#endif // _HAS_CXX17
+
+    return true;
+}
+
 int main() {
     test_all_constants();
     test_all_bitmasks();
@@ -1020,4 +1047,8 @@ int main() {
            == "1111111011011100101110101001100001110110010101000011001000010000");
     assert(bitset<75>(0xFEDCBA9876543210ULL).to_string()
            == "000000000001111111011011100101110101001100001110110010101000011001000010000");
+
+    // P0295R0 gcd(), lcm()
+    test_gcd_lcm();
+    STATIC_ASSERT(test_gcd_lcm());
 }

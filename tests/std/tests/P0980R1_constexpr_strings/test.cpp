@@ -165,7 +165,7 @@ struct string_view_convertible {
     }
 };
 
-// TRANSITION, EDG concepts support
+// TRANSITION, GH-395 (equalRanges should be replaced by direct calls to ranges::equal)
 template <class Range1, class Range2>
 constexpr bool equalRanges(const Range1& range1, const Range2& range2) noexcept {
 #ifdef __cpp_lib_concepts
@@ -613,17 +613,7 @@ constexpr bool test_interface() {
         literal_constructed.shrink_to_fit();
 
         const auto c4 = literal_constructed.capacity();
-        if (is_constant_evaluated()) { // check minimum allocation of _BUF_SIZE when constant evaluated
-            assert(c4 == 16 / sizeof(CharType));
-        } else {
-            if constexpr (is_same_v<CharType, char16_t> || is_same_v<CharType, wchar_t>) {
-                assert(c4 == 7);
-            } else if constexpr (is_same_v<CharType, char32_t>) {
-                assert(c4 == 3);
-            } else {
-                assert(c4 == 15);
-            }
-        }
+        assert(c4 == 16 / sizeof(CharType) - 1);
     }
 
     { // clear
@@ -668,7 +658,7 @@ constexpr bool test_interface() {
 
         str insert_initializer_list = get_literal_input<CharType>();
         const auto it_ilist         = insert_initializer_list.insert(insert_initializer_list.begin() + 6,
-            {CharType{'c'}, CharType{'u'}, CharType{'t'}, CharType{'e'}, CharType{' '}});
+                    {CharType{'c'}, CharType{'u'}, CharType{'t'}, CharType{'e'}, CharType{' '}});
         assert(it_ilist == insert_initializer_list.begin() + 6);
         assert(equalRanges(insert_initializer_list, "Hello cute fluffy kittens"sv));
 
@@ -2382,6 +2372,18 @@ constexpr void test_all() {
     static_assert(test_growth<CharType>());
     static_assert(test_allocator_awareness<CharType>());
 }
+
+#if _HAS_CXX23
+void test_gh_2524() { // COMPILE-ONLY
+    // GH-2524 resize_and_overwrite generates warning C4018 when Operation returns int
+    string s;
+    s.resize_and_overwrite(1, [](char* buffer, size_t) {
+        *buffer = 'x';
+        int i   = 1;
+        return i;
+    });
+}
+#endif // _HAS_CXX23
 
 int main() {
     test_all<char>();

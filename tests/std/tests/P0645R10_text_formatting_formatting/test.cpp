@@ -3,7 +3,6 @@
 
 #include <algorithm>
 #include <cassert>
-#include <climits>
 #include <cstdio>
 #include <exception>
 #include <format>
@@ -17,6 +16,13 @@
 #include <utility>
 
 using namespace std;
+
+constexpr auto int_min    = numeric_limits<int>::min();
+constexpr auto int_max    = numeric_limits<int>::max();
+constexpr auto uint_max   = numeric_limits<unsigned int>::max();
+constexpr auto llong_min  = numeric_limits<long long>::min();
+constexpr auto llong_max  = numeric_limits<long long>::max();
+constexpr auto ullong_max = numeric_limits<unsigned long long>::max();
 
 // copied from the string_view tests
 template <typename CharT>
@@ -74,7 +80,7 @@ struct move_only_back_inserter {
     move_only_back_inserter() = default;
     explicit move_only_back_inserter(basic_string<charT>& str) : it{str} {}
 
-    move_only_back_inserter(const move_only_back_inserter&) = delete;
+    move_only_back_inserter(const move_only_back_inserter&)            = delete;
     move_only_back_inserter& operator=(const move_only_back_inserter&) = delete;
 
     move_only_back_inserter(move_only_back_inserter&& other) : it(other.it) {
@@ -275,22 +281,22 @@ void test_simple_replacement_field() {
 
     output_string.clear();
     vformat_to(
-        back_insert_iterator{output_string}, locale::classic(), STR("{}"), make_testing_format_args<charT>(INT_MIN));
+        back_insert_iterator{output_string}, locale::classic(), STR("{}"), make_testing_format_args<charT>(int_min));
     assert(output_string == STR("-2147483648"));
 
     output_string.clear();
     vformat_to(
-        back_insert_iterator{output_string}, locale::classic(), STR("{}"), make_testing_format_args<charT>(INT_MAX));
+        back_insert_iterator{output_string}, locale::classic(), STR("{}"), make_testing_format_args<charT>(int_max));
     assert(output_string == STR("2147483647"));
 
     output_string.clear();
     vformat_to(
-        back_insert_iterator{output_string}, locale::classic(), STR("{}"), make_testing_format_args<charT>(LLONG_MAX));
+        back_insert_iterator{output_string}, locale::classic(), STR("{}"), make_testing_format_args<charT>(llong_max));
     assert(output_string == STR("9223372036854775807"));
 
     output_string.clear();
     vformat_to(
-        back_insert_iterator{output_string}, locale::classic(), STR("{}"), make_testing_format_args<charT>(LLONG_MIN));
+        back_insert_iterator{output_string}, locale::classic(), STR("{}"), make_testing_format_args<charT>(llong_min));
     assert(output_string == STR("-9223372036854775808"));
 
     // Test unsigned integers
@@ -306,12 +312,12 @@ void test_simple_replacement_field() {
 
     output_string.clear();
     vformat_to(
-        back_insert_iterator{output_string}, locale::classic(), STR("{}"), make_testing_format_args<charT>(UINT_MAX));
+        back_insert_iterator{output_string}, locale::classic(), STR("{}"), make_testing_format_args<charT>(uint_max));
     assert(output_string == STR("4294967295"));
 
     output_string.clear();
     vformat_to(
-        back_insert_iterator{output_string}, locale::classic(), STR("{}"), make_testing_format_args<charT>(ULLONG_MAX));
+        back_insert_iterator{output_string}, locale::classic(), STR("{}"), make_testing_format_args<charT>(ullong_max));
     assert(output_string == STR("18446744073709551615"));
 
     // Test float
@@ -359,6 +365,11 @@ void test_simple_replacement_field() {
     vformat_to(back_insert_iterator{output_string}, locale::classic(), STR("{}"),
         make_testing_format_args<charT>(numeric_limits<float>::quiet_NaN()));
     assert(output_string == STR("nan"));
+
+    output_string.clear();
+    vformat_to(back_insert_iterator{output_string}, locale::classic(), STR("{}"),
+        make_testing_format_args<charT>(-numeric_limits<float>::quiet_NaN()));
+    assert(output_string == STR("-nan"));
 
     output_string.clear();
     vformat_to(back_insert_iterator{output_string}, locale::classic(), STR("{}"), make_testing_format_args<charT>(0.f));
@@ -414,6 +425,11 @@ void test_simple_replacement_field() {
     vformat_to(back_insert_iterator{output_string}, locale::classic(), STR("{}"),
         make_testing_format_args<charT>(numeric_limits<double>::quiet_NaN()));
     assert(output_string == STR("nan"));
+
+    output_string.clear();
+    vformat_to(back_insert_iterator{output_string}, locale::classic(), STR("{}"),
+        make_testing_format_args<charT>(-numeric_limits<double>::quiet_NaN()));
+    assert(output_string == STR("-nan"));
 
     output_string.clear();
     vformat_to(back_insert_iterator{output_string}, locale::classic(), STR("{}"), make_testing_format_args<charT>(0.0));
@@ -631,7 +647,6 @@ void test_bool_specs() {
 
     test_type(STR("{:b}"), true);
     test_type(STR("{:B}"), true);
-    test_type(STR("{:c}"), true);
     test_type(STR("{:d}"), true);
     test_type(STR("{:o}"), true);
     test_type(STR("{:x}"), true);
@@ -639,7 +654,6 @@ void test_bool_specs() {
 
     test_type(STR("{:b}"), false);
     test_type(STR("{:B}"), false);
-    test_type(STR("{:c}"), false);
     test_type(STR("{:d}"), false);
     test_type(STR("{:o}"), false);
     test_type(STR("{:x}"), false);
@@ -726,6 +740,10 @@ void test_float_specs() {
     assert(format(STR("{:+}"), nan) == STR("+nan"));
     assert(format(STR("{:-}"), nan) == STR("nan"));
 
+    assert(format(STR("{: }"), -nan) == STR("-nan"));
+    assert(format(STR("{:+}"), -nan) == STR("-nan"));
+    assert(format(STR("{:-}"), -nan) == STR("-nan"));
+
     // Alternate form
     assert(format(STR("{:#}"), Float{0}) == STR("0."));
     assert(format(STR("{:#a}"), Float{0}) == STR("0.p+0"));
@@ -762,6 +780,16 @@ void test_float_specs() {
     assert(format(STR("{:#F} {:#F}"), inf, nan) == STR("INF NAN"));
     assert(format(STR("{:#g} {:#g}"), inf, nan) == STR("inf nan"));
     assert(format(STR("{:#G} {:#G}"), inf, nan) == STR("INF NAN"));
+
+    assert(format(STR("{:#} {:#}"), -inf, -nan) == STR("-inf -nan"));
+    assert(format(STR("{:#a} {:#a}"), -inf, -nan) == STR("-inf -nan"));
+    assert(format(STR("{:#A} {:#A}"), -inf, -nan) == STR("-INF -NAN"));
+    assert(format(STR("{:#e} {:#e}"), -inf, -nan) == STR("-inf -nan"));
+    assert(format(STR("{:#E} {:#E}"), -inf, -nan) == STR("-INF -NAN"));
+    assert(format(STR("{:#f} {:#f}"), -inf, -nan) == STR("-inf -nan"));
+    assert(format(STR("{:#F} {:#F}"), -inf, -nan) == STR("-INF -NAN"));
+    assert(format(STR("{:#g} {:#g}"), -inf, -nan) == STR("-inf -nan"));
+    assert(format(STR("{:#G} {:#G}"), -inf, -nan) == STR("-INF -NAN"));
 
     // Width
     assert(format(STR("{:3}"), Float{0}) == STR("  0"));
@@ -857,7 +885,9 @@ void test_float_specs() {
     assert(format(STR("{:06}"), Float{0}) == STR("000000"));
     assert(format(STR("{:06}"), Float{1.2}) == STR("0001.2"));
     assert(format(STR("{:06}"), nan) == STR("   nan"));
+    assert(format(STR("{:06}"), -nan) == STR("  -nan"));
     assert(format(STR("{:06}"), inf) == STR("   inf"));
+    assert(format(STR("{:06}"), -inf) == STR("  -inf"));
 
     // Locale
 #if !defined(_DLL) || _ITERATOR_DEBUG_LEVEL == DEFAULT_IDL_SETTING
@@ -868,7 +898,9 @@ void test_float_specs() {
     assert(format(locale{"en-US"}, STR("{:.4Lf}"), value) == STR("1,234.5273"));
     assert(format(locale{"en-US"}, STR("{:#.4Lg}"), Float{0}) == STR("0.000"));
     assert(format(locale{"en-US"}, STR("{:L}"), nan) == STR("nan"));
+    assert(format(locale{"en-US"}, STR("{:L}"), -nan) == STR("-nan"));
     assert(format(locale{"en-US"}, STR("{:L}"), inf) == STR("inf"));
+    assert(format(locale{"en-US"}, STR("{:L}"), -inf) == STR("-inf"));
 
     assert(format(locale{"de-DE"}, STR("{:Lf}"), Float{0}) == STR("0,000000"));
 #endif // !defined(_DLL) || _ITERATOR_DEBUG_LEVEL == DEFAULT_IDL_SETTING
@@ -894,6 +926,15 @@ void test_float_specs() {
     assert(format(STR("{:F} {:F}"), inf, nan) == STR("INF NAN"));
     assert(format(STR("{:g} {:g}"), inf, nan) == STR("inf nan"));
     assert(format(STR("{:G} {:G}"), inf, nan) == STR("INF NAN"));
+
+    assert(format(STR("{:a} {:a}"), -inf, -nan) == STR("-inf -nan"));
+    assert(format(STR("{:A} {:A}"), -inf, -nan) == STR("-INF -NAN"));
+    assert(format(STR("{:e} {:e}"), -inf, -nan) == STR("-inf -nan"));
+    assert(format(STR("{:E} {:E}"), -inf, -nan) == STR("-INF -NAN"));
+    assert(format(STR("{:f} {:f}"), -inf, -nan) == STR("-inf -nan"));
+    assert(format(STR("{:F} {:F}"), -inf, -nan) == STR("-INF -NAN"));
+    assert(format(STR("{:g} {:g}"), -inf, -nan) == STR("-inf -nan"));
+    assert(format(STR("{:G} {:G}"), -inf, -nan) == STR("-INF -NAN"));
 }
 
 template <class charT>
@@ -912,7 +953,7 @@ void test_pointer_specs() {
     throw_helper(STR("{:0}"), nullptr);
 
     // Width
-    assert(format(STR("{:5}"), nullptr) == STR("0x0  "));
+    assert(format(STR("{:5}"), nullptr) == STR("  0x0"));
 
     // Precision
     throw_helper(STR("{:.5}"), nullptr);
@@ -992,16 +1033,15 @@ void test_spec_replacement_field() {
     test_string_specs<charT>();
 }
 template <class charT, class... Args>
-void test_size_helper_impl(
-    const size_t expected_size, const _Basic_format_string<charT, Args...> fmt, const Args&... args) {
-    assert(formatted_size(fmt, args...) == expected_size);
-    assert(formatted_size(locale::classic(), fmt, args...) == expected_size);
+void test_size_helper_impl(const size_t expected_size, const _Basic_format_string<charT, Args...> fmt, Args&&... args) {
+    assert(formatted_size(fmt, forward<Args>(args)...) == expected_size);
+    assert(formatted_size(locale::classic(), fmt, forward<Args>(args)...) == expected_size);
 
     const auto signed_size = static_cast<ptrdiff_t>(expected_size);
     basic_string<charT> str;
     {
         str.resize(expected_size);
-        const auto res = format_to_n(str.begin(), signed_size, fmt, args...);
+        const auto res = format_to_n(str.begin(), signed_size, fmt, forward<Args>(args)...);
         assert(res.size == signed_size);
         assert(res.out - str.begin() == signed_size);
         assert(res.out == str.end());
@@ -1009,7 +1049,7 @@ void test_size_helper_impl(
 
         basic_string<charT> locale_str;
         locale_str.resize(expected_size);
-        format_to_n(locale_str.begin(), signed_size, locale::classic(), fmt, args...);
+        format_to_n(locale_str.begin(), signed_size, locale::classic(), fmt, forward<Args>(args)...);
         assert(str == locale_str);
         assert(locale_str.size() == expected_size);
     }
@@ -1017,7 +1057,7 @@ void test_size_helper_impl(
     {
         const auto half_size = expected_size / 2;
         half_str.resize(half_size);
-        const auto res = format_to_n(half_str.begin(), static_cast<ptrdiff_t>(half_size), fmt, args...);
+        const auto res = format_to_n(half_str.begin(), static_cast<ptrdiff_t>(half_size), fmt, forward<Args>(args)...);
         assert(res.size == signed_size);
         assert(static_cast<size_t>(res.out - half_str.begin()) == half_size);
         assert(res.out == half_str.end());
@@ -1283,12 +1323,14 @@ void libfmt_formatter_test_runtime_width() {
     throw_helper(STR("{0:{1}}"), 0);
     throw_helper(STR("{0:{0:}}"), 0);
     throw_helper(STR("{0:{1}}"), 0, -1);
-    throw_helper(STR("{0:{1}}"), 0, (INT_MAX + 1u));
+    throw_helper(STR("{0:{1}}"), 0, (int_max + 1u));
     throw_helper(STR("{0:{1}}"), 0, -1l);
-    throw_helper(STR("{0:{1}}"), 0, (INT_MAX + 1ul));
+    throw_helper(STR("{0:{1}}"), 0, (int_max + 1ul));
     assert(format(STR("{0:{1}}"), 0, '0')
            == STR("                                               0")); // behavior differs from libfmt, but conforms
     throw_helper(STR("{0:{1}}"), 0, 0.0);
+
+    assert(format(STR("{0:{1}}"), 42, 0) == STR("42")); // LWG-3721: zero dynamic width is OK
 
     assert(format(STR("{0:{1}}"), -42, 4) == STR(" -42"));
     assert(format(STR("{0:{1}}"), 42u, 5) == STR("   42"));
@@ -1298,8 +1340,7 @@ void libfmt_formatter_test_runtime_width() {
     assert(format(STR("{0:{1}}"), 42ull, 7) == STR("     42"));
     assert(format(STR("{0:{1}}"), -1.23, 8) == STR("   -1.23"));
     assert(format(STR("{0:{1}}"), -1.23l, 9) == STR("    -1.23"));
-    assert(format(STR("{0:{1}}"), reinterpret_cast<void*>(0xcafe), 10)
-           == STR("0xcafe    ")); // behavior differs from libfmt, but conforms
+    assert(format(STR("{0:{1}}"), reinterpret_cast<void*>(0xcafe), 10) == STR("    0xcafe"));
     assert(format(STR("{0:{1}}"), 'x', 11) == STR("x          "));
     assert(format(STR("{0:{1}}"), STR("str"), 12) == STR("str         "));
 }
@@ -1313,9 +1354,9 @@ void libfmt_formatter_test_runtime_precision() {
     throw_helper(STR("{0:.{1}}"), 0);
     throw_helper(STR("{0:.{0:}}"), 0);
     throw_helper(STR("{0:.{1}}"), 0, -1);
-    throw_helper(STR("{0:.{1}}"), 0, (INT_MAX + 1u));
+    throw_helper(STR("{0:.{1}}"), 0, (int_max + 1u));
     throw_helper(STR("{0:.{1}}"), 0, -1l);
-    throw_helper(STR("{0:.{1}}"), 0, (INT_MAX + 1ul));
+    throw_helper(STR("{0:.{1}}"), 0, (int_max + 1ul));
     throw_helper(STR("{0:.{1}}"), 0, '0');
     throw_helper(STR("{0:.{1}}"), 0, 0.0);
     throw_helper(STR("{0:.{1}}"), 42, 2);
@@ -1340,14 +1381,12 @@ void libfmt_formatter_test_runtime_precision() {
 
 template <class charT>
 void test_locale_specific_formatting_without_locale() {
-#ifndef _MSVC_INTERNAL_TESTING // TRANSITION, the Windows version on Contest VMs doesn't always understand ".UTF-8"
 #if !defined(_DLL) || _ITERATOR_DEBUG_LEVEL == DEFAULT_IDL_SETTING
     locale loc("en-US.UTF-8");
     locale::global(loc);
     assert(format(STR("{:L}"), 12345) == STR("12,345"));
     locale::global(locale::classic());
 #endif // !defined(_DLL) || _ITERATOR_DEBUG_LEVEL == DEFAULT_IDL_SETTING
-#endif // _MSVC_INTERNAL_TESTING
 }
 
 template <class charT>
@@ -1373,10 +1412,10 @@ void test_sane_c_specifier() {
     throw_helper(STR("{:+}"), true);
     throw_helper(STR("{:+c}"), true);
     assert(format(STR("{:^}"), true) == STR("true"));
-    assert(format(STR("{:^c}"), true) == STR("\x1"));
+    throw_helper(STR("{:^c}"), true);
     throw_helper(STR("{:0}"), true);
     throw_helper(STR("{:0c}"), true);
-    assert(format(STR("{:c}"), true) == STR("\x1"));
+    throw_helper(STR("{:c}"), true);
 
     throw_helper(STR("{:#}"), 'c');
     throw_helper(STR("{:#c}"), 'c');
@@ -1387,6 +1426,13 @@ void test_sane_c_specifier() {
     throw_helper(STR("{:0}"), 'c');
     throw_helper(STR("{:0c}"), 'c');
     assert(format(STR("{:c}"), 'c') == STR("c"));
+}
+
+template <class charT, class T>
+void test_localized_char() {
+    // L should be accepted and ignored for "integral types" charT and char
+    assert(format(STR("{:L}"), T('c')) == STR("c"));
+    assert(format(STR("{:Lc}"), T('c')) == STR("c"));
 }
 
 void test() {
@@ -1461,6 +1507,10 @@ void test() {
 
     test_sane_c_specifier<char>();
     test_sane_c_specifier<wchar_t>();
+
+    test_localized_char<char, char>();
+    test_localized_char<wchar_t, char>();
+    test_localized_char<wchar_t, wchar_t>();
 }
 
 int main() {

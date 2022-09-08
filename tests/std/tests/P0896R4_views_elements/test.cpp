@@ -36,7 +36,7 @@ template <ranges::input_range Rng>
 constexpr bool test_one(Rng&& rng) {
     using ranges::elements_view, ranges::bidirectional_range, ranges::common_range, ranges::contiguous_range,
         ranges::enable_borrowed_range, ranges::forward_range, ranges::input_range, ranges::iterator_t, ranges::prev,
-        ranges::random_access_range, ranges::range, ranges::range_reference_t, ranges::sentinel_t,
+        ranges::random_access_range, ranges::range, ranges::range_reference_t, ranges::sentinel_t, ranges::sized_range,
         ranges::borrowed_range;
 
     using V = views::all_t<Rng>;
@@ -157,7 +157,7 @@ constexpr bool test_one(Rng&& rng) {
     const bool is_empty = ranges::empty(expected_keys);
 
     // Validate view_interface::empty and operator bool
-    STATIC_ASSERT(CanMemberEmpty<R> == forward_range<Rng>);
+    STATIC_ASSERT(CanMemberEmpty<R> == (sized_range<Rng> || forward_range<Rng>) );
     STATIC_ASSERT(CanBool<R> == CanEmpty<R>);
     if constexpr (CanMemberEmpty<R>) {
         assert(r.empty() == is_empty);
@@ -170,7 +170,7 @@ constexpr bool test_one(Rng&& rng) {
         }
     }
 
-    STATIC_ASSERT(CanMemberEmpty<const R> == forward_range<const Rng>);
+    STATIC_ASSERT(CanMemberEmpty<const R> == (sized_range<const Rng> || forward_range<const Rng>) );
     STATIC_ASSERT(CanBool<const R> == CanEmpty<const R>);
     if constexpr (CanMemberEmpty<const R>) {
         assert(as_const(r).empty() == is_empty);
@@ -186,11 +186,11 @@ constexpr bool test_one(Rng&& rng) {
     // Validate content
     assert(ranges::equal(r, expected_keys));
 
-    // Validate keys_view and values_view
-    STATIC_ASSERT(same_as<ranges::keys_view<Rng>, R>);
-    STATIC_ASSERT(same_as<ranges::values_view<Rng>, elements_view<V, 1>>);
+    // Validate views::keys and views::values
+    STATIC_ASSERT(same_as<decltype(views::keys(rng)), R>);
+    STATIC_ASSERT(same_as<decltype(views::values(rng)), elements_view<V, 1>>);
     if constexpr (forward_range<Rng> && is_lvalue_reference_v<Rng>) {
-        assert(ranges::equal(ranges::values_view<Rng>{rng}, expected_values));
+        assert(ranges::equal(views::values(rng), expected_values));
     }
 
     // Validate elements_view::begin
