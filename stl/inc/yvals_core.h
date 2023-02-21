@@ -1744,6 +1744,8 @@ _EMIT_STL_ERROR(STL1004, "C++98 unexpected() is incompatible with C++23 unexpect
 #define __cpp_lib_constexpr_memory 201811L // P1006R1 constexpr For pointer_traits<T*>::pointer_to()
 #endif // _HAS_CXX20
 
+#define __cpp_lib_complex_tuple 202302LL
+
 #ifndef _M_CEE_PURE
 #if _HAS_CXX20
 #define __cpp_lib_execution 201902L // P1001R2 execution::unseq

@@ -2228,6 +2228,41 @@ basic_ostream<_Elem, _Tr>& operator<<(basic_ostream<_Elem, _Tr>& _Ostr, const co
     return _Ostr << _Sstr.str();
 }
 
+#ifdef __cpp_lib_complex_tuple
+template<class T> struct tuple_size;
+template<size_t I, class T> struct tuple_element;
+
+template<class T>
+struct tuple_size<complex<T>> : integral_constant<size_t, 2> {};
+
+template<size_t I, class T>
+struct tuple_element<I, complex<T>> {
+    static_assert(I < 2);
+    using type = T;
+};
+
+template<size_t I, class T>
+constexpr T& get(complex<T>& z) noexcept {
+    static_assert(I < 2);
+    return z._Val[I];
+}
+template<size_t I, class T>
+constexpr const T& get(const complex<T>& z) noexcept {
+    static_assert(I < 2);
+    return z._Val[I];
+}
+template<size_t I, class T>
+constexpr T&& get(complex<T>&& z) noexcept {
+    static_assert(I < 2);
+    return move(z._Val[I]);
+}
+template<size_t I, class T>
+constexpr const T&& get(const complex<T>&& z) noexcept {
+    static_assert(I < 2);
+    return move(z._Val[I]);
+}
+#endif
+
 inline namespace literals {
     inline namespace complex_literals {
         _EXPORT_STD _NODISCARD constexpr complex<long double> operator""il(long double _Val) {
