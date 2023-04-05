@@ -10,8 +10,6 @@
 
 using namespace std;
 
-int main() {} // COMPILE-ONLY
-
 using test::CanCompare, test::CanDifference, test::WrappedState, test::ProxyRef, test::to_bool;
 
 // Validate test::iterator and test::sentinel
@@ -26,7 +24,7 @@ constexpr bool iter_test() {
 
     STATIC_ASSERT(!movable<Element> || indirectly_writable<I, Element>);
 
-    constexpr bool can_write = derived_from<Category, output_iterator_tag> //
+    constexpr bool can_write = derived_from<Category, output_iterator_tag>
                             || (derived_from<Category, forward_iterator_tag> && assignable_from<Element&, Element>);
     STATIC_ASSERT(!can_write || output_iterator<I, Element>);
 
@@ -205,9 +203,9 @@ STATIC_ASSERT(
 // Validate test::range
 template <class R>
 concept has_member_size = requires(const R& r) {
-    typename ranges::range_size_t<R>;
-    { r.size() } -> same_as<ranges::range_size_t<R>>;
-};
+                              typename ranges::range_size_t<R>;
+                              { r.size() } -> same_as<ranges::range_size_t<R>>;
+                          };
 
 using test::Sized, test::Common;
 

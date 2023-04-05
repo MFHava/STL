@@ -34,9 +34,7 @@ using pipeline_t =
         Fun>;
 
 template <class Rng>
-concept CanViewTransform = requires(Rng&& r) {
-    views::transform(forward<Rng>(r), add8);
-};
+concept CanViewTransform = requires(Rng&& r) { views::transform(forward<Rng>(r), add8); };
 
 template <ranges::input_range Rng, ranges::random_access_range Expected>
 constexpr bool test_one(Rng&& rng, Expected&& expected) {
@@ -356,12 +354,42 @@ constexpr void test_difference_on_const_functor(Rng&& rng) {
         using VItCat  = typename iterator_traits<It>::iterator_category;
         using TVItCat = typename iterator_traits<TVIt>::iterator_category;
         STATIC_ASSERT(
-            is_same_v<TVItCat, VItCat> //
+            is_same_v<TVItCat, VItCat>
             || (is_same_v<TVItCat, random_access_iterator_tag> && is_same_v<VItCat, contiguous_iterator_tag>) );
     }
 
     if constexpr (forward_range<const V>) {
         STATIC_ASSERT(is_same_v<typename iterator_traits<iterator_t<const TV>>::iterator_category, input_iterator_tag>);
+    }
+}
+
+// Test xvalue ranges (LWG-3798)
+struct move_fn {
+    constexpr auto&& operator()(auto&& x) const noexcept {
+        return move(x);
+    }
+};
+
+template <ranges::input_range Rng>
+constexpr void test_xvalue_ranges(Rng&& rng) {
+    using ranges::transform_view, ranges::forward_range, ranges::iterator_t, ranges::range_reference_t;
+
+    using V  = views::all_t<Rng>;
+    using TV = transform_view<V, move_fn>;
+
+    auto r = forward<Rng>(rng) | views::transform(move_fn{});
+    STATIC_ASSERT(is_same_v<decltype(r), TV>);
+
+    STATIC_ASSERT(is_rvalue_reference_v<range_reference_t<TV>>);
+
+    if constexpr (forward_range<V>) {
+        using It      = iterator_t<V>;
+        using TVIt    = iterator_t<TV>;
+        using VItCat  = typename iterator_traits<It>::iterator_category;
+        using TVItCat = typename iterator_traits<TVIt>::iterator_category;
+        STATIC_ASSERT(
+            is_same_v<TVItCat, VItCat>
+            || (is_same_v<TVItCat, random_access_iterator_tag> && is_same_v<VItCat, contiguous_iterator_tag>) );
     }
 }
 
@@ -376,6 +404,9 @@ struct instantiator {
 
         R r2{some_ints};
         test_difference_on_const_functor(r2);
+
+        R r3{some_ints};
+        test_xvalue_ranges(r3);
     }
 };
 
@@ -588,7 +619,7 @@ struct iterator_instantiator {
             assert((0 + I{}).base().peek() == nullptr);
             STATIC_ASSERT(NOEXCEPT_IDL0(2 + i));
 
-            auto vi = I{};
+            I vi{};
             assert(&(i += 5) == &i);
             assert(i.base().peek() == mutable_ints + 5);
             assert(&(vi += 0) == &vi);
@@ -778,6 +809,26 @@ void test_gh_1709() {
         test_assign.assign(b, e);
         assert((test_assign == vector{10, 20, 30, 40, 50}));
     }
+}
+
+// GH-3014 "<ranges>: list-initialization is misused"
+void test_gh_3014() { // COMPILE-ONLY
+    struct FwdRange {
+        int* begin() {
+            return nullptr;
+        }
+
+        test::init_list_not_constructible_iterator<int> begin() const {
+            return nullptr;
+        }
+
+        unreachable_sentinel_t end() const {
+            return {};
+        }
+    };
+
+    auto r                                           = FwdRange{} | views::transform(identity{});
+    [[maybe_unused]] decltype(as_const(r).begin()) i = r.begin(); // Check 'iterator(iterator<!Const> i)'
 }
 
 int main() {

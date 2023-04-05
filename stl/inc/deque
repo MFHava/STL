@@ -118,7 +118,7 @@ public:
     _NODISCARD strong_ordering operator<=>(const _Deque_unchecked_const_iterator& _Right) const noexcept {
         return _Myoff <=> _Right._Myoff;
     }
-#else // ^^^ _HAS_CXX20 ^^^ / vvv !_HAS_CXX20 vvv
+#else // ^^^ _HAS_CXX20 / !_HAS_CXX20 vvv
     _NODISCARD bool operator!=(const _Deque_unchecked_const_iterator& _Right) const noexcept {
         return !(*this == _Right);
     }
@@ -363,7 +363,7 @@ public:
         _Compat(_Right);
         return this->_Myoff <=> _Right._Myoff;
     }
-#else // ^^^ _HAS_CXX20 ^^^ / vvv !_HAS_CXX20 vvv
+#else // ^^^ _HAS_CXX20 / !_HAS_CXX20 vvv
     _NODISCARD bool operator!=(const _Deque_const_iterator& _Right) const noexcept {
         return !(*this == _Right);
     }
@@ -407,7 +407,7 @@ public:
     void _Verify_offset(const difference_type _Off) const noexcept {
 #if _ITERATOR_DEBUG_LEVEL == 0
         (void) _Off;
-#else // ^^^ _ITERATOR_DEBUG_LEVEL == 0 ^^^ // vvv _ITERATOR_DEBUG_LEVEL != 0 vvv
+#else // ^^^ _ITERATOR_DEBUG_LEVEL == 0 / _ITERATOR_DEBUG_LEVEL != 0 vvv
         if (_Off != 0) {
             const auto _Mycont = static_cast<const _Mydeque*>(this->_Getcont());
             _STL_VERIFY(_Mycont, "cannot use value-initialized deque iterator");
@@ -439,8 +439,7 @@ private:
     using _Mybase    = _Deque_const_iterator<_Mydeque>;
 
 public:
-    using _Deque_unchecked_type = _Deque_unchecked_iterator<_Mydeque>;
-    using iterator_category     = random_access_iterator_tag;
+    using iterator_category = random_access_iterator_tag;
 
     using value_type      = typename _Mydeque::value_type;
     using difference_type = typename _Mydeque::difference_type;
@@ -570,20 +569,19 @@ public:
     size_type _Mysize; // current length of sequence
 };
 
-template <class _Ty, class _Alloc = allocator<_Ty>>
+_EXPORT_STD template <class _Ty, class _Alloc = allocator<_Ty>>
 class deque {
 private:
     friend _Tidy_guard<deque>;
     static_assert(!_ENFORCE_MATCHING_ALLOCATORS || is_same_v<_Ty, typename _Alloc::value_type>,
         _MISMATCHED_ALLOCATOR_MESSAGE("deque<T, Allocator>", "T"));
 
-    using _Alty           = _Rebind_alloc_t<_Alloc, _Ty>;
-    using _Alty_traits    = allocator_traits<_Alty>;
-    using _Alpty          = _Rebind_alloc_t<_Alloc, typename _Alty_traits::pointer>;
-    using _Alpty_traits   = allocator_traits<_Alpty>;
-    using _Mapptr         = typename _Alpty_traits::pointer;
-    using _Alproxy_ty     = _Rebind_alloc_t<_Alty, _Container_proxy>;
-    using _Alproxy_traits = allocator_traits<_Alproxy_ty>;
+    using _Alty         = _Rebind_alloc_t<_Alloc, _Ty>;
+    using _Alty_traits  = allocator_traits<_Alty>;
+    using _Alpty        = _Rebind_alloc_t<_Alloc, typename _Alty_traits::pointer>;
+    using _Alpty_traits = allocator_traits<_Alpty>;
+    using _Mapptr       = typename _Alpty_traits::pointer;
+    using _Alproxy_ty   = _Rebind_alloc_t<_Alty, _Container_proxy>;
 
     using _Scary_val = _Deque_val<conditional_t<_Is_simple_alloc_v<_Alty>, _Deque_simple_types<_Ty>,
         _Deque_iter_types<_Ty, typename _Alty_traits::size_type, typename _Alty_traits::difference_type,
@@ -811,7 +809,7 @@ public:
             }
 
             const auto _Num = static_cast<difference_type>(_Mysize() - _Oldsize);
-            _STD reverse(begin(), begin() + _Num); // Per LWG-3742
+            _STD reverse(begin(), begin() + _Num);
         }
         _Guard._Container = nullptr;
     }
@@ -1490,7 +1488,7 @@ private:
                 }
 
                 _Mid = begin() + static_cast<difference_type>(_Count);
-                _STD fill(_Mid, _Mid + static_cast<difference_type>(_Off), _Val); // fill in rest of values
+                _STD fill_n(_Mid, _Off, _Val); // fill in rest of values
             } else { // insert not longer than prefix
                 for (_Num = _Count; _Num > 0; --_Num) {
                     push_front(begin()[static_cast<difference_type>(_Count - 1)]); // push part of prefix
@@ -1516,7 +1514,7 @@ private:
                 }
 
                 _Mid = begin() + static_cast<difference_type>(_Off);
-                _STD fill(_Mid, _Mid + static_cast<difference_type>(_Rem), _Val); // fill in rest of values
+                _STD fill_n(_Mid, _Rem, _Val); // fill in rest of values
             } else { // insert not longer than prefix
                 for (_Num = 0; _Num < _Count; ++_Num) {
                     _Emplace_back_internal(
@@ -1527,8 +1525,7 @@ private:
                 _Alloc_temporary2<_Alty> _Tmp(_Getal(), _Val); // in case _Val is in sequence
                 _STD move_backward(_Mid, _Mid + static_cast<difference_type>(_Rem - _Count),
                     _Mid + static_cast<difference_type>(_Rem)); // copy rest of prefix
-                _STD fill(_Mid, _Mid + static_cast<difference_type>(_Count),
-                    _Tmp._Get_value()); // fill in values
+                _STD fill_n(_Mid, _Count, _Tmp._Get_value()); // fill in values
             }
             _Guard._Container = nullptr;
         }
@@ -1696,12 +1693,12 @@ template <_RANGES input_range _Rng, class _Alloc = allocator<_RANGES range_value
 deque(from_range_t, _Rng&&, _Alloc = _Alloc()) -> deque<_RANGES range_value_t<_Rng>, _Alloc>;
 #endif // _HAS_CXX23 && defined(__cpp_lib_concepts)
 
-template <class _Ty, class _Alloc>
+_EXPORT_STD template <class _Ty, class _Alloc>
 void swap(deque<_Ty, _Alloc>& _Left, deque<_Ty, _Alloc>& _Right) noexcept /* strengthened */ {
     _Left.swap(_Right);
 }
 
-template <class _Ty, class _Alloc>
+_EXPORT_STD template <class _Ty, class _Alloc>
 _NODISCARD bool operator==(const deque<_Ty, _Alloc>& _Left, const deque<_Ty, _Alloc>& _Right) {
     return _Left.size() == _Right.size()
         && _STD equal(_Left._Unchecked_begin(), _Left._Unchecked_end(), _Right._Unchecked_begin());
@@ -1715,7 +1712,7 @@ _NODISCARD bool operator!=(const deque<_Ty, _Alloc>& _Left, const deque<_Ty, _Al
 #endif // !_HAS_CXX20
 
 #ifdef __cpp_lib_concepts
-template <class _Ty, class _Alloc>
+_EXPORT_STD template <class _Ty, class _Alloc>
 _NODISCARD _Synth_three_way_result<_Ty> operator<=>(const deque<_Ty, _Alloc>& _Left, const deque<_Ty, _Alloc>& _Right) {
     return _STD lexicographical_compare_three_way(_Left._Unchecked_begin(), _Left._Unchecked_end(),
         _Right._Unchecked_begin(), _Right._Unchecked_end(), _Synth_three_way{});
@@ -1744,12 +1741,12 @@ _NODISCARD bool operator>=(const deque<_Ty, _Alloc>& _Left, const deque<_Ty, _Al
 #endif // ^^^ !defined(__cpp_lib_concepts) ^^^
 
 #if _HAS_CXX20
-template <class _Ty, class _Alloc, class _Uty>
+_EXPORT_STD template <class _Ty, class _Alloc, class _Uty>
 typename deque<_Ty, _Alloc>::size_type erase(deque<_Ty, _Alloc>& _Cont, const _Uty& _Val) {
     return _Erase_remove(_Cont, _Val);
 }
 
-template <class _Ty, class _Alloc, class _Pr>
+_EXPORT_STD template <class _Ty, class _Alloc, class _Pr>
 typename deque<_Ty, _Alloc>::size_type erase_if(deque<_Ty, _Alloc>& _Cont, _Pr _Pred) {
     return _Erase_remove_if(_Cont, _Pass_fn(_Pred));
 }
@@ -1757,7 +1754,7 @@ typename deque<_Ty, _Alloc>::size_type erase_if(deque<_Ty, _Alloc>& _Cont, _Pr _
 
 #if _HAS_CXX17
 namespace pmr {
-    template <class _Ty>
+    _EXPORT_STD template <class _Ty>
     using deque = _STD deque<_Ty, polymorphic_allocator<_Ty>>;
 } // namespace pmr
 #endif // _HAS_CXX17

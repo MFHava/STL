@@ -10,9 +10,10 @@
 #include <yvals_core.h>
 #if _STL_COMPILER_PREPROCESSOR
 #include <cstdint>
-#include <intrin.h> // TRANSITION, GH-2520
 #include <limits>
 #include <type_traits>
+
+#include _STL_INTRIN_HEADER
 
 #if _HAS_CXX20
 #include <bit>
@@ -139,7 +140,7 @@ struct
     static constexpr void _Knuth_4_3_1_M(
         const uint32_t (&__u)[__m], const uint32_t (&__v)[__n], uint32_t (&__w)[__n + __m]) noexcept {
 #ifdef _ENABLE_STL_INTERNAL_CHECK
-        constexpr auto _Int_max = size_t{(numeric_limits<int>::max)()};
+        constexpr auto _Int_max = static_cast<size_t>((numeric_limits<int>::max)());
         _STL_INTERNAL_STATIC_ASSERT(__m <= _Int_max);
         _STL_INTERNAL_STATIC_ASSERT(__n <= _Int_max);
 #endif // _ENABLE_STL_INTERNAL_CHECK
@@ -188,15 +189,15 @@ struct
     static constexpr void _Knuth_4_3_1_D(uint32_t* const __u, const size_t __u_size, const uint32_t* const __v,
         const size_t __v_size, uint32_t* const __q) noexcept {
         // Pre: __u + [0, __u_size), __v + [0, __v_size), and __q + [0, __u_size - __v_size) are all valid ranges
-        // constexpr auto _Int_max = size_t{(numeric_limits<int>::max)()};
+        // constexpr auto _Int_max = static_cast<size_t>((numeric_limits<int>::max)());
         // _STL_INTERNAL_CHECK(__v_size <= _Int_max);
-        const auto __n = static_cast<int>(__v_size);
+        const int __n = static_cast<int>(__v_size);
         // _STL_INTERNAL_CHECK(__u_size > __v_size);
         // _STL_INTERNAL_CHECK(__u_size <= _Int_max);
-        const auto __m = static_cast<int>(__u_size - __v_size - 1);
+        const int __m = static_cast<int>(__u_size - __v_size - 1);
         // _STL_INTERNAL_CHECK(__v[__n - 1] >> 31 != 0); // Arguments are already normalized
 
-        for (auto __j = static_cast<int>(__m); __j >= 0; --__j) {
+        for (int __j = __m; __j >= 0; --__j) {
             const auto _Two_digits = (static_cast<uint64_t>(__u[__j + __n]) << 32) | __u[__j + __n - 1];
             auto __qhat            = _Two_digits / __v[__n - 1];
             auto __rhat            = _Two_digits % __v[__n - 1];
@@ -213,7 +214,7 @@ struct
 
             int64_t __k = 0;
             int64_t __t _ZERO_OR_NO_INIT;
-            for (int __i = 0; __i < static_cast<int>(__n); ++__i) {
+            for (int __i = 0; __i < __n; ++__i) {
                 const auto _Prod = static_cast<uint32_t>(__qhat) * static_cast<uint64_t>(__v[__i]);
                 __t              = __u[__i + __j] - __k - static_cast<uint32_t>(_Prod);
                 __u[__i + __j]   = static_cast<uint32_t>(__t);
@@ -226,7 +227,7 @@ struct
             if (__t < 0) {
                 --__q[__j];
                 __k = 0;
-                for (int __i = 0; __i < static_cast<int>(__n); ++__i) {
+                for (int __i = 0; __i < __n; ++__i) {
                     __t            = __u[__i + __j] + __k + __v[__i];
                     __u[__i + __j] = static_cast<uint32_t>(__t);
                     __k            = __t >> 32;
@@ -1026,22 +1027,6 @@ public:
     static constexpr int digits10   = 38;
 };
 
-#ifdef __cpp_lib_concepts
-template <integral _Ty>
-struct common_type<_Ty, _Unsigned128> {
-    using type = _Unsigned128;
-};
-template <integral _Ty>
-struct common_type<_Unsigned128, _Ty> {
-    using type = _Unsigned128;
-};
-#else // ^^^ defined(__cpp_lib_concepts) / !defined(__cpp_lib_concepts) vvv
-template <class _Ty>
-struct common_type<_Ty, _Unsigned128> : enable_if<is_integral_v<_Ty>, _Unsigned128> {};
-template <class _Ty>
-struct common_type<_Unsigned128, _Ty> : enable_if<is_integral_v<_Ty>, _Unsigned128> {};
-#endif // ^^^ !defined(__cpp_lib_concepts) ^^^
-
 struct _Signed128 : _Base128 {
     using _Signed_type   = _Signed128;
     using _Unsigned_type = _Unsigned128;
@@ -1423,25 +1408,10 @@ public:
         return 0;
     }
 
-    static constexpr int digits   = 127;
-    static constexpr int digits10 = 38;
+    static constexpr int digits     = 127;
+    static constexpr int digits10   = 38;
+    static constexpr bool is_signed = true;
 };
-
-#ifdef __cpp_lib_concepts
-template <integral _Ty>
-struct common_type<_Ty, _Signed128> {
-    using type = _Signed128;
-};
-template <integral _Ty>
-struct common_type<_Signed128, _Ty> {
-    using type = _Signed128;
-};
-#else // ^^^ defined(__cpp_lib_concepts) / !defined(__cpp_lib_concepts) vvv
-template <class _Ty>
-struct common_type<_Ty, _Signed128> : enable_if<is_integral_v<_Ty>, _Signed128> {};
-template <class _Ty>
-struct common_type<_Signed128, _Ty> : enable_if<is_integral_v<_Ty>, _Signed128> {};
-#endif // ^^^ !defined(__cpp_lib_concepts) ^^^
 
 template <>
 struct common_type<_Signed128, _Unsigned128> {
@@ -1451,109 +1421,6 @@ template <>
 struct common_type<_Unsigned128, _Signed128> {
     using type = _Unsigned128;
 };
-
-inline namespace literals {
-    inline namespace _Int128_literals {
-        namespace _Int128_detail {
-            enum class _U128_parse_status : unsigned char {
-                _Valid,
-                _Overflow,
-                _Invalid,
-            };
-
-            struct _U128_parse_result {
-                _U128_parse_status _Status_code;
-                _Unsigned128 _Value;
-            };
-
-            _NODISCARD _CONSTEVAL unsigned int _Char_to_digit(const char _Ch) noexcept {
-                if (_Ch >= '0' && _Ch <= '9') {
-                    return static_cast<unsigned int>(_Ch - '0');
-                }
-
-                if (_Ch >= 'A' && _Ch <= 'F') {
-                    return static_cast<unsigned int>(_Ch - 'A' + 10);
-                }
-
-                if (_Ch >= 'a' && _Ch <= 'f') {
-                    return static_cast<unsigned int>(_Ch - 'a' + 10);
-                }
-
-                return static_cast<unsigned int>(-1);
-            }
-
-            template <unsigned int _Base, char... _Chars>
-            struct _Parse_u128_impl {
-                _NODISCARD static _CONSTEVAL _U128_parse_result _Parse() noexcept {
-                    if constexpr (sizeof...(_Chars) == 0) {
-                        return {_U128_parse_status::_Valid, 0};
-                    } else {
-                        constexpr char _Char_seq[]{_Chars...};
-                        constexpr auto _U128_max = (numeric_limits<_Unsigned128>::max)();
-
-                        _Unsigned128 _Val{};
-                        for (const char _Ch : _Char_seq) {
-                            if (_Ch == '\'') {
-                                continue;
-                            }
-
-                            const unsigned int _Digit = _Char_to_digit(_Ch);
-                            if (_Digit == static_cast<unsigned int>(-1)) {
-                                return {_U128_parse_status::_Invalid, _Unsigned128{}};
-                            }
-
-                            if (_Val > _U128_max / _Base || _Base * _Val > _U128_max - _Digit) {
-                                return {_U128_parse_status::_Overflow, _Unsigned128{}};
-                            }
-
-                            _Val = _Base * _Val + _Digit;
-                        }
-                        return {_U128_parse_status::_Valid, _Val};
-                    }
-                }
-            };
-
-            template <char... _Chars>
-            struct _Parse_u128 : _Parse_u128_impl<10, _Chars...> {};
-
-            template <char... _Chars>
-            struct _Parse_u128<'0', 'X', _Chars...> : _Parse_u128_impl<16, _Chars...> {};
-
-            template <char... _Chars>
-            struct _Parse_u128<'0', 'x', _Chars...> : _Parse_u128_impl<16, _Chars...> {};
-
-            template <char... _Chars>
-            struct _Parse_u128<'0', 'B', _Chars...> : _Parse_u128_impl<2, _Chars...> {};
-
-            template <char... _Chars>
-            struct _Parse_u128<'0', 'b', _Chars...> : _Parse_u128_impl<2, _Chars...> {};
-
-            template <char... _Chars>
-            struct _Parse_u128<'0', _Chars...> : _Parse_u128_impl<8, _Chars...> {};
-        } // namespace _Int128_detail
-
-        template <char... _Chars>
-        _NODISCARD _CONSTEVAL _Unsigned128 operator"" __u128() noexcept {
-            constexpr auto _Parsed_result = _Int128_detail::_Parse_u128<_Chars...>::_Parse();
-            static_assert(_Parsed_result._Status_code != _Int128_detail::_U128_parse_status::_Invalid,
-                "Invalid characters in the integer literal");
-            static_assert(_Parsed_result._Status_code != _Int128_detail::_U128_parse_status::_Overflow,
-                "The integer literal is too large for an unsigned 128-bit number");
-            return _Parsed_result._Value;
-        }
-
-        template <char... _Chars>
-        _NODISCARD _CONSTEVAL _Signed128 operator"" __i128() noexcept {
-            constexpr auto _Parsed_result = _Int128_detail::_Parse_u128<_Chars...>::_Parse();
-            static_assert(_Parsed_result._Status_code != _Int128_detail::_U128_parse_status::_Invalid,
-                "Invalid characters in the integer literal");
-            static_assert(_Parsed_result._Status_code != _Int128_detail::_U128_parse_status::_Overflow
-                              && _Parsed_result._Value._Word[1] < (static_cast<uint64_t>(1) << 63),
-                "The integer literal is too large for a signed 128-bit number");
-            return static_cast<_Signed128>(_Parsed_result._Value);
-        }
-    } // namespace _Int128_literals
-} // namespace literals
 
 #undef _STL_128_INTRINSICS
 #undef _STL_128_DIV_INTRINSICS

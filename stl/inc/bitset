@@ -20,7 +20,7 @@ _STL_DISABLE_CLANG_WARNINGS
 #undef new
 
 _STD_BEGIN
-template <size_t _Bits>
+_EXPORT_STD template <size_t _Bits>
 class bitset { // store fixed-length sequence of Boolean elements
 public:
 #pragma warning(push)
@@ -29,9 +29,11 @@ public:
 #pragma warning(pop)
 
     class reference { // proxy for an element
-        friend bitset<_Bits>;
+        friend bitset;
 
     public:
+        _CONSTEXPR23 reference(const reference&) = default;
+
         _CONSTEXPR23 ~reference() noexcept {} // TRANSITION, ABI
 
         _CONSTEXPR23 reference& operator=(const bool _Val) noexcept {
@@ -44,17 +46,17 @@ public:
             return *this;
         }
 
-        _CONSTEXPR23 reference& flip() noexcept {
-            _Pbitset->_Flip_unchecked(_Mypos);
-            return *this;
-        }
-
         _NODISCARD _CONSTEXPR23 bool operator~() const noexcept {
             return !_Pbitset->_Subscript(_Mypos);
         }
 
         _CONSTEXPR23 operator bool() const noexcept {
             return _Pbitset->_Subscript(_Mypos);
+        }
+
+        _CONSTEXPR23 reference& flip() noexcept {
+            _Pbitset->_Flip_unchecked(_Mypos);
+            return *this;
         }
 
     private:
@@ -69,7 +71,7 @@ public:
     static _CONSTEXPR23 void _Validate(const size_t _Pos) noexcept { // verify that _Pos is within bounds
 #if _ITERATOR_DEBUG_LEVEL == 0
         (void) _Pos;
-#else // ^^^ _ITERATOR_DEBUG_LEVEL == 0 ^^^ // vvv _ITERATOR_DEBUG_LEVEL != 0 vvv
+#else // ^^^ _ITERATOR_DEBUG_LEVEL == 0 / _ITERATOR_DEBUG_LEVEL != 0 vvv
         _STL_VERIFY(_Pos < _Bits, "bitset index outside range");
 #endif // _ITERATOR_DEBUG_LEVEL == 0
     }
@@ -492,28 +494,28 @@ private:
     _Ty _Array[_Words + 1];
 };
 
-template <size_t _Bits>
+_EXPORT_STD template <size_t _Bits>
 _NODISCARD _CONSTEXPR23 bitset<_Bits> operator&(const bitset<_Bits>& _Left, const bitset<_Bits>& _Right) noexcept {
     bitset<_Bits> _Ans = _Left;
     _Ans &= _Right;
     return _Ans;
 }
 
-template <size_t _Bits>
+_EXPORT_STD template <size_t _Bits>
 _NODISCARD _CONSTEXPR23 bitset<_Bits> operator|(const bitset<_Bits>& _Left, const bitset<_Bits>& _Right) noexcept {
     bitset<_Bits> _Ans = _Left;
     _Ans |= _Right;
     return _Ans;
 }
 
-template <size_t _Bits>
+_EXPORT_STD template <size_t _Bits>
 _NODISCARD _CONSTEXPR23 bitset<_Bits> operator^(const bitset<_Bits>& _Left, const bitset<_Bits>& _Right) noexcept {
     bitset<_Bits> _Ans = _Left;
     _Ans ^= _Right;
     return _Ans;
 }
 
-template <class _Elem, class _Tr, size_t _Bits>
+_EXPORT_STD template <class _Elem, class _Tr, size_t _Bits>
 basic_ostream<_Elem, _Tr>& operator<<(basic_ostream<_Elem, _Tr>& _Ostr, const bitset<_Bits>& _Right) {
     using _Ctype             = typename basic_ostream<_Elem, _Tr>::_Ctype;
     const _Ctype& _Ctype_fac = _STD use_facet<_Ctype>(_Ostr.getloc());
@@ -523,7 +525,7 @@ basic_ostream<_Elem, _Tr>& operator<<(basic_ostream<_Elem, _Tr>& _Ostr, const bi
     return _Ostr << _Right.template to_string<_Elem, _Tr, allocator<_Elem>>(_Elem0, _Elem1);
 }
 
-template <class _Elem, class _Tr, size_t _Bits>
+_EXPORT_STD template <class _Elem, class _Tr, size_t _Bits>
 basic_istream<_Elem, _Tr>& operator>>(basic_istream<_Elem, _Tr>& _Istr, bitset<_Bits>& _Right) {
     using _Istr_t                    = basic_istream<_Elem, _Tr>;
     using _Ctype                     = typename _Istr_t::_Ctype;

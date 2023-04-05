@@ -387,7 +387,7 @@ void iter_cat_test_cases() {
     constexpr bool enable_derived_to_base =
 #ifdef __cpp_lib_is_pointer_interconvertible
         true
-#else // ^^^ __cpp_lib_is_pointer_interconvertible ^^^ / vvv !__cpp_lib_is_pointer_interconvertible vvv
+#else // ^^^ __cpp_lib_is_pointer_interconvertible / !__cpp_lib_is_pointer_interconvertible vvv
         false
 #endif // ^^^ !__cpp_lib_is_pointer_interconvertible ^^^
         ;
@@ -482,5 +482,3 @@ void iter_cat_test_cases() {
     test_iter_cat_for_containers<false, array<int, 8>, array<volatile int, 8>>();
     test_iter_cat_for_containers<false, array<volatile int, 8>, array<volatile int, 8>>();
 }
-
-int main() {} // COMPILE-ONLY
