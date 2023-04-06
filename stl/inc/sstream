@@ -72,17 +72,17 @@ public:
     }
 #ifdef __cpp_lib_sstream_from_string_view
     template<typename _T>
-    requires(is_convertible_v<const _T&, basic_string_view<_Elem, _Traits>> && !is_convertible_v<const _T&, const _Elem*>)
+    requires(is_convertible_v<const _T&, basic_string_view<_Elem, _Traits>>)
     explicit basic_stringbuf(const _T& _t, ios_base::openmode _Mode = ios_base::in | ios_base::out) {
         basic_string_view<_Elem, _Traits> sv = _t;
         _Init(sv.data(), sv.size(), _Getstate(_Mode));
     }
     template<typename _T>
-    requires(is_convertible_v<const _T&, basic_string_view<_Elem, _Traits>> && !is_convertible_v<const _T&, const _Elem*>)
+    requires(is_convertible_v<const _T&, basic_string_view<_Elem, _Traits>>)
     basic_stringbuf(const _T& _t, const _Alloc& _Al_) : basic_stringbuf(_t, ios_base::in | ios_base::out, _Al_) {}
 
     template<typename _T>
-    requires(is_convertible_v<const _T&, basic_string_view<_Elem, _Traits>> && !is_convertible_v<const _T&, const _Elem*>)
+    requires(is_convertible_v<const _T&, basic_string_view<_Elem, _Traits>>)
     basic_stringbuf(const _T& _t, ios_base::openmode _Mode, const _Alloc& _Al_) : _Al(_Al_) {
         basic_string_view<_Elem, _Traits> sv = _t;
         _Init(sv.data(), sv.size(), _Getstate(_Mode));
@@ -240,7 +240,7 @@ public:
 
 #ifdef __cpp_lib_sstream_from_string_view
     template<typename _T>
-    requires(is_convertible_v<const _T&, basic_string_view<_Elem, _Traits>> && !is_convertible_v<const _T&, const _Elem*>)
+    requires(is_convertible_v<const _T&, basic_string_view<_Elem, _Traits>>)
     void str(const _T& _t) {
         basic_string_view<_Elem, _Traits> sv = _t;
         _Tidy();
@@ -612,15 +612,15 @@ public:
         : _Mybase(_STD addressof(_Stringbuffer)), _Stringbuffer(_Str, _Mode | ios_base::in) {}
 #ifdef __cpp_lib_sstream_from_string_view
     template<typename _T>
-    requires(is_convertible_v<const _T&, basic_string_view<_Elem, _Traits>> && !is_convertible_v<const _T&, const _Elem*>)
+    requires(is_convertible_v<const _T&, basic_string_view<_Elem, _Traits>>)
     explicit basic_istringstream(const _T& _t, ios_base::openmode _Mode = ios_base::in)
         : _Mybase(_STD addressof(_Stringbuffer)), _Stringbuffer(_t, _Mode | ios_base::in) {}
     template<typename _T>
-    requires(is_convertible_v<const _T&, basic_string_view<_Elem, _Traits>> && !is_convertible_v<const _T&, const _Elem*>)
+    requires(is_convertible_v<const _T&, basic_string_view<_Elem, _Traits>>)
     basic_istringstream(const _T& _t, const _Alloc & _Al) : basic_istringstream(_t, ios_base::in, _Al) {}
 
     template<typename _T>
-    requires(is_convertible_v<const _T&, basic_string_view<_Elem, _Traits>> && !is_convertible_v<const _T&, const _Elem*>)
+    requires(is_convertible_v<const _T&, basic_string_view<_Elem, _Traits>>)
     basic_istringstream(const _T& _t, ios_base::openmode _Mode, const _Alloc& _Al)
         : _Mybase(_STD addressof(_Stringbuffer)), _Stringbuffer(_t, _Mode | ios_base::in, _Al) {}
 #endif
@@ -695,7 +695,7 @@ public:
     }
 #ifdef __cpp_lib_sstream_from_string_view
     template<typename _T>
-    requires(is_convertible_v<const _T&, basic_string_view<_Elem, _Traits>> && !is_convertible_v<const _T&, const _Elem*>)
+    requires(is_convertible_v<const _T&, basic_string_view<_Elem, _Traits>>)
     void str(const _T& _t) {
         _Stringbuffer.str(_t);
     }
@@ -753,15 +753,15 @@ public:
         : _Mybase(_STD addressof(_Stringbuffer)), _Stringbuffer(_Str, _Mode | ios_base::out) {}
 #ifdef __cpp_lib_sstream_from_string_view
     template<typename _T>
-    requires(is_convertible_v<const _T&, basic_string_view<_Elem, _Traits>> && !is_convertible_v<const _T&, const _Elem*>)
+    requires(is_convertible_v<const _T&, basic_string_view<_Elem, _Traits>>)
     explicit basic_ostringstream(const _T& _t, ios_base::openmode _Mode = ios_base::out)
         : _Mybase(_STD addressof(_Stringbuffer)), _Stringbuffer(_t, _Mode | ios_base::out) {}
     template<typename _T>
-    requires(is_convertible_v<const _T&, basic_string_view<_Elem, _Traits>> && !is_convertible_v<const _T&, const _Elem*>)
+    requires(is_convertible_v<const _T&, basic_string_view<_Elem, _Traits>>)
     basic_ostringstream(const _T& _t, const _Alloc & _Al) : basic_ostringstream(_t, ios_base::out, _Al) {}
 
     template<typename _T>
-    requires(is_convertible_v<const _T&, basic_string_view<_Elem, _Traits>> && !is_convertible_v<const _T&, const _Elem*>)
+    requires(is_convertible_v<const _T&, basic_string_view<_Elem, _Traits>>)
     basic_ostringstream(const _T& _t, ios_base::openmode _Mode, const _Alloc& _Al)
         : _Mybase(_STD addressof(_Stringbuffer)), _Stringbuffer(_t, _Mode | ios_base::out, _Al) {}
 #endif
@@ -836,7 +836,7 @@ public:
     }
 #ifdef __cpp_lib_sstream_from_string_view
     template<typename _T>
-    requires(is_convertible_v<const _T&, basic_string_view<_Elem, _Traits>> && !is_convertible_v<const _T&, const _Elem*>)
+    requires(is_convertible_v<const _T&, basic_string_view<_Elem, _Traits>>)
     void str(const _T& _t) {
         _Stringbuffer.str(_t);
     }
@@ -900,15 +900,15 @@ public:
         : _Mybase(_STD addressof(_Stringbuffer)), _Stringbuffer(_Str, _Mode) {}
 #ifdef __cpp_lib_sstream_from_string_view
     template<typename _T>
-    requires(is_convertible_v<const _T&, basic_string_view<_Elem, _Traits>> && !is_convertible_v<const _T&, const _Elem*>)
+    requires(is_convertible_v<const _T&, basic_string_view<_Elem, _Traits>>)
     explicit basic_stringstream(const _T& _t, ios_base::openmode _Mode = ios_base::in | ios_base::out)
         : _Mybase(_STD addressof(_Stringbuffer)), _Stringbuffer(_t, _Mode) {}
     template<typename _T>
-    requires(is_convertible_v<const _T&, basic_string_view<_Elem, _Traits>> && !is_convertible_v<const _T&, const _Elem*>)
+    requires(is_convertible_v<const _T&, basic_string_view<_Elem, _Traits>>)
     basic_stringstream(const _T& _t, const _Alloc & _Al) : basic_stringstream(_t, ios_base::in | ios_base::out, _Al) {}
 
     template<typename _T>
-    requires(is_convertible_v<const _T&, basic_string_view<_Elem, _Traits>> && !is_convertible_v<const _T&, const _Elem*>)
+    requires(is_convertible_v<const _T&, basic_string_view<_Elem, _Traits>>)
     basic_stringstream(const _T& _t, ios_base::openmode _Mode, const _Alloc& _Al)
         : _Mybase(_STD addressof(_Stringbuffer)), _Stringbuffer(_t, _Mode, _Al) {}
 #endif
@@ -983,7 +983,7 @@ public:
     }
 #ifdef __cpp_lib_sstream_from_string_view
     template<typename _T>
-    requires(is_convertible_v<const _T&, basic_string_view<_Elem, _Traits>> && !is_convertible_v<const _T&, const _Elem*>)
+    requires(is_convertible_v<const _T&, basic_string_view<_Elem, _Traits>>)
     void str(const _T& _t) {
         _Stringbuffer.str(_t);
     }
