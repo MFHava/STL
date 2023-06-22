@@ -151,6 +151,9 @@ _EXPORT_STD template <class _Tuple>
 struct tuple_size;
 
 _EXPORT_STD template <class _Ty>
+class complex;
+
+_EXPORT_STD template <class _Ty>
 _INLINE_VAR constexpr size_t tuple_size_v = tuple_size<_Ty>::value;
 
 _EXPORT_STD template <size_t _Index, class _Tuple>
@@ -202,7 +205,7 @@ inline constexpr bool _Is_subrange_v = false;
 #if _HAS_CXX23
 template <class _Ty>
 inline constexpr bool _Tuple_like_impl =
-    _Is_specialization_v<_Ty, tuple> || _Is_specialization_v<_Ty, pair> || _Is_std_array_v<_Ty> || _Is_subrange_v<_Ty>;
+    _Is_specialization_v<_Ty, tuple> || _Is_specialization_v<_Ty, pair> || _Is_std_array_v<_Ty> || _Is_subrange_v<_Ty> || _Is_specialization_v<_Ty, complex>;
 
 template <class _Ty>
 concept _Tuple_like = _Tuple_like_impl<remove_cvref_t<_Ty>>;

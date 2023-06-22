@@ -937,6 +937,29 @@ public:
         return this->_Val[_IM];
     }
 
+#ifdef __cpp_lib_complex_tuple
+    template<size_t I>
+    friend
+    constexpr _Ty& get(_Complex_base& z) noexcept {
+        static_assert(I < 2);
+        return z._Val[I];
+    }
+    template<size_t I>
+    constexpr const _Ty& get(const _Complex_base& z) noexcept {
+        static_assert(I < 2);
+        return z._Val[I];
+    }
+    template<size_t I>
+    constexpr _Ty&& get(_Complex_base&& z) noexcept {
+        static_assert(I < 2);
+        return move(z._Val[I]);
+    }
+    template<size_t I>
+    constexpr const _Ty&& get(const _Complex_base&& z) noexcept {
+        static_assert(I < 2);
+        return move(z._Val[I]);
+    }
+#endif
 protected:
     template <class _Other>
     _CONSTEXPR20 void _Add(const complex<_Other>& _Right) {
@@ -2239,27 +2262,6 @@ struct tuple_element<I, complex<T>> {
     static_assert(I < 2);
     using type = T;
 };
-
-template<size_t I, class T>
-constexpr T& get(complex<T>& z) noexcept {
-    static_assert(I < 2);
-    return z._Val[I];
-}
-template<size_t I, class T>
-constexpr const T& get(const complex<T>& z) noexcept {
-    static_assert(I < 2);
-    return z._Val[I];
-}
-template<size_t I, class T>
-constexpr T&& get(complex<T>&& z) noexcept {
-    static_assert(I < 2);
-    return move(z._Val[I]);
-}
-template<size_t I, class T>
-constexpr const T&& get(const complex<T>&& z) noexcept {
-    static_assert(I < 2);
-    return move(z._Val[I]);
-}
 #endif
 
 inline namespace literals {
