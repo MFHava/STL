@@ -1,10 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-cmake_minimum_required(VERSION 3.25)
-
-# TRANSITION, CMake-24249
-cmake_policy(SET CMP0141 OLD)
+cmake_minimum_required(VERSION 3.26.0)
 
 set(CMAKE_TRY_COMPILE_TARGET_TYPE STATIC_LIBRARY)
 project(msvc_standard_libraries LANGUAGES CXX)
@@ -50,6 +47,8 @@ set(VCLIBS_SUFFIX "_oss" CACHE STRING "suffix for built DLL names to avoid confl
 
 option(STL_USE_ANALYZE "Pass the /analyze flag to MSVC" OFF)
 
+set(VCLIBS_EXPLICIT_MACHINE "")
+
 if("${VCLIBS_TARGET_ARCHITECTURE}" MATCHES "^x86$")
     set(VCLIBS_TARGET_ARCHITECTURE "x86")
     set(VCLIBS_I386_OR_AMD64 "i386")
@@ -74,6 +73,13 @@ elseif(VCLIBS_TARGET_ARCHITECTURE MATCHES "^arm64$")
     set(VCLIBS_I386_OR_AMD64 "arm64")
     set(VCLIBS_X86_OR_X64 "arm64")
     add_compile_definitions(_ARM64_ _VCRT_WIN32_WINNT=0x0A00 _STL_WIN32_WINNT=0x0A00)
+elseif(VCLIBS_TARGET_ARCHITECTURE MATCHES "^arm64ec$")
+    set(VCLIBS_TARGET_ARCHITECTURE "arm64ec")
+    set(VCLIBS_I386_OR_AMD64 "arm64ec")
+    set(VCLIBS_X86_OR_X64 "arm64") # Yes, really: `%VCToolsInstallDir%lib\arm64ec` only contains the Link Options
+    add_compile_definitions(_AMD64_ _ARM64EC_ _VCRT_WIN32_WINNT=0x0501 _STL_WIN32_WINNT=0x0501)
+    add_compile_options($<$<COMPILE_LANGUAGE:CXX>:/arm64EC>)
+    set(VCLIBS_EXPLICIT_MACHINE "/machine:arm64ec")
 else()
     message(FATAL_ERROR "Could not determine target architecture: VCLIBS_TARGET_ARCHITECTURE: ${VCLIBS_TARGET_ARCHITECTURE}")
 endif()

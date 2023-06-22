@@ -109,8 +109,6 @@ using namespace std;
 
 #define STATIC_ASSERT(...) static_assert(__VA_ARGS__, #__VA_ARGS__)
 
-int main() {} // COMPILE-ONLY
-
 #ifndef _M_CEE_PURE
 
 #if _HAS_CXX20
@@ -573,16 +571,22 @@ void future_test() {
 }
 #endif // _M_CEE_PURE
 
-template <typename IoManipIn, typename IoManipOut>
-void iomanip_test_impl(IoManipIn in, IoManipOut out) {
+template <typename IoManipOut, typename IoManipIn>
+void iomanip_test_impl(IoManipOut out, IoManipIn in) {
     stringstream ss{};
-    ss << in;
-    ss >> out;
+    ss << out;
+    ss >> in;
 }
 
 template <typename IoManip>
 void iomanip_test_impl(IoManip iom) {
     iomanip_test_impl(iom, iom);
+}
+
+template <typename IoManip>
+void iomanip_test_impl_for_setfill(IoManip out) {
+    stringstream ss{};
+    ss << out;
 }
 
 void iomanip_test() {
@@ -593,7 +597,7 @@ void iomanip_test() {
     localtime_s(&time, &t);
     string str = "string with \" quotes ";
 
-    iomanip_test_impl(sf);
+    iomanip_test_impl_for_setfill(sf);
     iomanip_test_impl(put_money(money), get_money(money));
     iomanip_test_impl(put_time(&time, "%c %Z"), get_time(&time, "%c %Z"));
     iomanip_test_impl(quoted(str.c_str()), quoted(str));
@@ -1276,7 +1280,8 @@ template <typename RegexTokenIterator>
 void regex_token_iterator_test_impl() {
     using it_type      = typename RegexTokenIterator::value_type::iterator;
     int submatches[10] = {0};
-    it_type start{}, finish{};
+    it_type start{};
+    it_type finish{};
     typename RegexTokenIterator::regex_type rgx{};
     RegexTokenIterator rti0(start, finish, rgx, submatches);
 }
@@ -1625,7 +1630,7 @@ void typeindex_test() {
 
 template <typename FunctorArg, typename Arg>
 void functors_test_impl(Arg val) {
-    // Following from <xstddef>:
+    // Following from <type_traits> and <xutility>:
     (void) plus<FunctorArg>()(val, val);
     (void) minus<FunctorArg>()(val, val);
     (void) multiplies<FunctorArg>()(val, val);

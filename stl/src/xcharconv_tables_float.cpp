@@ -1,11 +1,6 @@
 // Copyright (c) Microsoft Corporation.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-// This must be as small as possible, because its contents are
-// injected into the msvcprt.lib and msvcprtd.lib import libraries.
-// Do not include or define anything else here.
-// In particular, basic_string must not be included here.
-
 #include <xcharconv_tables.h>
 
 namespace std {
@@ -19,7 +14,6 @@ namespace std {
         0x3DCCCCC6u, 0x3F7FFFF7u, 0x411FFFFAu, 0x42C7FFF9u, 0x4479FFF7u, 0x461C3FFAu, 0x47C34FF9u, 0x497423F7u,
         0x38D1B716u, 0x3A83126Eu, 0x3C23D709u, 0x3DCCCCCCu, 0x3F7FFFFFu, 0x411FFFFFu, 0x42C7FFFFu, 0x4479FFFFu,
         0x461C3FFFu, 0x47C34FFFu, 0x497423FFu, 0x4B18967Fu};
-
 
     const uint32_t _General_precision_tables_2<float>::_Ordinary_X_table[44] = {0x38D1B717u, 0x3A83126Eu, 0x3C23D70Au,
         0x3DCCCCCCu, 0x3F7FFFFFu, 0x411FFFFFu, 0x42C7FFFFu, 0x4479FFFFu, 0x461C3FFFu, 0x47C34FFFu, 0x497423FFu,

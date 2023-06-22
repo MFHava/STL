@@ -3,6 +3,10 @@
 // Copyright (c) Microsoft Corporation.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+// This header is used to compile the import library (via locale0_implib.cpp => locale0.cpp => xfacet => yvals.h).
+// MAJOR LIMITATIONS apply to what can be included here!
+// Before editing this file, read: /docs/import_library.md
+
 #pragma once
 #ifndef _YVALS
 #define _YVALS
@@ -232,7 +236,6 @@ _STL_DISABLE_CLANG_WARNINGS
 #define _ATOMIC_REF_CHECK_ALIGNMENT(cond, mesg) _Analysis_assume_(cond)
 #endif
 
-
 #include <use_ansi.h>
 
 #ifdef _STATIC_CPPLIB
@@ -314,12 +317,6 @@ _EMIT_STL_WARNING(STL4001, "/clr:pure is deprecated and will be REMOVED.");
 #define _CRTDATA2_IMPORT _CRTIMP2_IMPORT
 #endif
 #endif // _CRTDATA2_IMPORT
-
-// integer properties
-#define _MAX_EXP_DIG    8 // for parsing numerics
-#define _MAX_INT_DIG    32
-#define _MAX_SIG_DIG_V1 36 // TRANSITION, ABI
-#define _MAX_SIG_DIG_V2 768
 
 #define _LOCK_LOCALE         0
 #define _LOCK_MALLOC         1

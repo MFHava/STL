@@ -1,8 +1,6 @@
 // Copyright (c) Microsoft Corporation.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-int main() {} // COMPILE-ONLY
-
 // This test is loosely derived from dev11_437519_container_requirements, except the specific condition tested for is
 // use of allocator::construct rather than constructing actual temporaries everywhere. Parts of
 // dev11_437519_container_requirements where regressions of this kind are unlikely and testing of them is very difficult
@@ -589,7 +587,7 @@ void check_all_container_requirements() {
     test_container_copy_constructor<Tag>();
     test_container_move_constructor<Tag>();
     test_container_swap<Tag>();
-};
+}
 
 //
 //

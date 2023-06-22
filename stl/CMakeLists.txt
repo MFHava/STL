@@ -7,11 +7,14 @@
 
 set(HEADERS
     ${CMAKE_CURRENT_LIST_DIR}/inc/__msvc_all_public_headers.hpp
+    ${CMAKE_CURRENT_LIST_DIR}/inc/__msvc_bit_utils.hpp
     ${CMAKE_CURRENT_LIST_DIR}/inc/__msvc_chrono.hpp
     ${CMAKE_CURRENT_LIST_DIR}/inc/__msvc_cxx_stdatomic.hpp
+    ${CMAKE_CURRENT_LIST_DIR}/inc/__msvc_filebuf.hpp
     ${CMAKE_CURRENT_LIST_DIR}/inc/__msvc_format_ucd_tables.hpp
     ${CMAKE_CURRENT_LIST_DIR}/inc/__msvc_int128.hpp
     ${CMAKE_CURRENT_LIST_DIR}/inc/__msvc_iter_core.hpp
+    ${CMAKE_CURRENT_LIST_DIR}/inc/__msvc_print.hpp
     ${CMAKE_CURRENT_LIST_DIR}/inc/__msvc_sanitizer_annotate_container.hpp
     ${CMAKE_CURRENT_LIST_DIR}/inc/__msvc_system_error_abi.hpp
     ${CMAKE_CURRENT_LIST_DIR}/inc/__msvc_tzdb.hpp
@@ -182,6 +185,7 @@ set(HEADERS
     ${CMAKE_CURRENT_LIST_DIR}/inc/numeric
     ${CMAKE_CURRENT_LIST_DIR}/inc/optional
     ${CMAKE_CURRENT_LIST_DIR}/inc/ostream
+    ${CMAKE_CURRENT_LIST_DIR}/inc/print
     ${CMAKE_CURRENT_LIST_DIR}/inc/queue
     ${CMAKE_CURRENT_LIST_DIR}/inc/random
     ${CMAKE_CURRENT_LIST_DIR}/inc/ranges
@@ -198,6 +202,7 @@ set(HEADERS
     ${CMAKE_CURRENT_LIST_DIR}/inc/stack
     ${CMAKE_CURRENT_LIST_DIR}/inc/stacktrace
     ${CMAKE_CURRENT_LIST_DIR}/inc/stdexcept
+    ${CMAKE_CURRENT_LIST_DIR}/inc/stdfloat
     ${CMAKE_CURRENT_LIST_DIR}/inc/stop_token
     ${CMAKE_CURRENT_LIST_DIR}/inc/streambuf
     ${CMAKE_CURRENT_LIST_DIR}/inc/string
@@ -243,7 +248,6 @@ set(HEADERS
     ${CMAKE_CURRENT_LIST_DIR}/inc/xnode_handle.h
     ${CMAKE_CURRENT_LIST_DIR}/inc/xpolymorphic_allocator.h
     ${CMAKE_CURRENT_LIST_DIR}/inc/xsmf_control.h
-    ${CMAKE_CURRENT_LIST_DIR}/inc/xstddef
     ${CMAKE_CURRENT_LIST_DIR}/inc/xstring
     ${CMAKE_CURRENT_LIST_DIR}/inc/xthreads.h
     ${CMAKE_CURRENT_LIST_DIR}/inc/xtimec.h
@@ -285,6 +289,7 @@ set(IMPLIB_SOURCES
     ${CMAKE_CURRENT_LIST_DIR}/src/format.cpp
     ${CMAKE_CURRENT_LIST_DIR}/src/locale0_implib.cpp
     ${CMAKE_CURRENT_LIST_DIR}/src/nothrow.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/src/print.cpp
     ${CMAKE_CURRENT_LIST_DIR}/src/sharedmutex.cpp
     ${CMAKE_CURRENT_LIST_DIR}/src/stacktrace.cpp
     ${CMAKE_CURRENT_LIST_DIR}/src/syserror_import_lib.cpp
@@ -490,12 +495,14 @@ set(CMAKE_SHARED_LINKER_FLAGS_DEBUG "")
 set(CMAKE_SHARED_LINKER_FLAGS_RELEASE "")
 
 # Toolset options must appear before add_library() for the options to take effect.
-add_compile_definitions(_CRTBLD _VCRT_ALLOW_INTERNALS _HAS_OLD_IOSTREAMS_MEMBERS=1 _STL_CONCRT_SUPPORT)
+add_compile_definitions(_CRTBLD _VCRT_ALLOW_INTERNALS _HAS_OLD_IOSTREAMS_MEMBERS=1)
+
+# /Z7 for MSVC, /Zi for MASM
+set(CMAKE_MSVC_DEBUG_INFORMATION_FORMAT "Embedded")
 
 add_compile_options(/WX /Gy
-    "$<$<COMPILE_LANGUAGE:CXX>:/diagnostics:caret;/W4;/w14265;/w15038;/fastfail;/guard:cf;/Z7;/Zp8;/std:c++latest;/permissive-;/Zc:threadSafeInit-;/Zl>"
-    # note that /Zi generates debug info inside the object file, it's the same as /Z7 for msvc
-    "$<$<COMPILE_LANGUAGE:ASM_MASM>:/Zi;/W3;/nologo>"
+    "$<$<COMPILE_LANGUAGE:CXX>:/diagnostics:caret;/W4;/w14265;/w15038;/fastfail;/guard:cf;/Zp8;/std:c++latest;/permissive-;/Zc:threadSafeInit-;/Zl>"
+    "$<$<COMPILE_LANGUAGE:ASM_MASM>:/W3;/nologo;/quiet>"
 )
 
 include_directories(BEFORE
@@ -527,9 +534,27 @@ function(target_stl_compile_options tgt rel_or_dbg)
     endif()
 endfunction()
 
+function(generate_satellite_def SATELLITE_NAME D_SUFFIX)
+    set(full_satellite_name "msvcp140${D_SUFFIX}_${SATELLITE_NAME}${VCLIBS_SUFFIX}")
+    string(TOUPPER "${full_satellite_name}" upper_full_satellite_name)
+    set(satellite_input_src_file_path "${CMAKE_CURRENT_LIST_DIR}/src/msvcp_${SATELLITE_NAME}.src")
+    set(satellite_output_def_file_path "${CMAKE_BINARY_DIR}/msvcp_${SATELLITE_NAME}${D_SUFFIX}.def")
+    set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${satellite_input_src_file_path}")
+
+    # We use the placeholder name "LIBRARYNAME" in the corresponding .src file of a satellite DLL
+    # (i.e., we write "LIBRARY LIBRARYNAME" as the first non-commented line in the file).
+    #
+    # Here, we dynamically replace this placeholder name with the name of the satellite DLL for
+    # the current build configuration. Then, we write out the new .def file to the binary output
+    # directory.
+    file(READ "${satellite_input_src_file_path}" satellite_def_file_contents)
+    string(REPLACE "LIBRARYNAME" "${upper_full_satellite_name}" satellite_def_file_contents "${satellite_def_file_contents}")
+    file(GENERATE OUTPUT "${satellite_output_def_file_path}" CONTENT "${satellite_def_file_contents}")
+endfunction()
+
 function(add_stl_dlls D_SUFFIX REL_OR_DBG)
-    set(link_options_Release "/LTCG;/opt:ref,icf")
-    set(link_options_Debug "/opt:ref,noicf")
+    set(link_options_Release "/LTCG;/opt:ref,icf;${VCLIBS_EXPLICIT_MACHINE}")
+    set(link_options_Debug "/opt:ref,noicf;${VCLIBS_EXPLICIT_MACHINE}")
 
     set(gl_flag_Release "/GL")
     set(gl_flag_Debug "")
@@ -551,7 +576,7 @@ function(add_stl_dlls D_SUFFIX REL_OR_DBG)
     target_stl_compile_options(msvcp${D_SUFFIX}_eha_objects ${REL_OR_DBG})
 
     add_library(msvcp${D_SUFFIX} SHARED)
-    target_link_libraries(msvcp${D_SUFFIX} PRIVATE msvcp${D_SUFFIX}_eha_objects msvcp${D_SUFFIX}_objects msvcp${D_SUFFIX}_init_objects "${TOOLSET_LIB}/vcruntime${D_SUFFIX}.lib" "${TOOLSET_LIB}/msvcrt${D_SUFFIX}.lib" "ucrt${D_SUFFIX}.lib" "ole32.lib")
+    target_link_libraries(msvcp${D_SUFFIX} PRIVATE msvcp${D_SUFFIX}_eha_objects msvcp${D_SUFFIX}_objects msvcp${D_SUFFIX}_init_objects "${TOOLSET_LIB}/vcruntime${D_SUFFIX}.lib" "${TOOLSET_LIB}/msvcrt${D_SUFFIX}.lib" "ucrt${D_SUFFIX}.lib")
     set_target_properties(msvcp${D_SUFFIX} PROPERTIES ARCHIVE_OUTPUT_NAME "msvcp140_base${D_SUFFIX}${VCLIBS_SUFFIX}")
     set_target_properties(msvcp${D_SUFFIX} PROPERTIES ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}")
     set_target_properties(msvcp${D_SUFFIX} PROPERTIES OUTPUT_NAME "msvcp140${D_SUFFIX}${VCLIBS_SUFFIX}")
@@ -559,7 +584,7 @@ function(add_stl_dlls D_SUFFIX REL_OR_DBG)
 
     # import library 'statics'
     add_library(msvcp${D_SUFFIX}_implib_objects OBJECT ${IMPLIB_SOURCES})
-    target_compile_definitions(msvcp${D_SUFFIX}_implib_objects PRIVATE _DLL)
+    target_compile_definitions(msvcp${D_SUFFIX}_implib_objects PRIVATE _DLL _ENFORCE_ONLY_CORE_HEADERS)
     target_compile_options(msvcp${D_SUFFIX}_implib_objects PRIVATE /EHsc) # No /GL!
     target_stl_compile_options(msvcp${D_SUFFIX}_implib_objects ${REL_OR_DBG})
 
@@ -602,20 +627,13 @@ function(add_stl_dlls D_SUFFIX REL_OR_DBG)
     target_stl_compile_options(msvcp${D_SUFFIX}_atomic_wait_objects ${REL_OR_DBG})
 
     # generate the .def for msvcp140_atomic_wait.dll
-    set(_ATOMIC_WAIT_OUTPUT_NAME "msvcp140${D_SUFFIX}_atomic_wait${VCLIBS_SUFFIX}")
-    string(TOUPPER "${_ATOMIC_WAIT_OUTPUT_NAME}" _ATOMIC_WAIT_OUTPUT_NAME_UPPER)
-    set(_ATOMIC_WAIT_DEF_NAME "${CMAKE_BINARY_DIR}/msvcp_atomic_wait${D_SUFFIX}.def")
-    set(_ATOMIC_WAIT_DEF_FILE_SRC "${CMAKE_CURRENT_LIST_DIR}/src/msvcp_atomic_wait.src")
-    set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${_ATOMIC_WAIT_DEF_FILE_SRC}")
-    file(READ "${_ATOMIC_WAIT_DEF_FILE_SRC}" _ATOMIC_WAIT_SRC_CONTENTS)
-    string(REPLACE "LIBRARYNAME" "${_ATOMIC_WAIT_OUTPUT_NAME_UPPER}" _ATOMIC_WAIT_DEF_CONTENTS "${_ATOMIC_WAIT_SRC_CONTENTS}")
-    file(GENERATE OUTPUT "${_ATOMIC_WAIT_DEF_NAME}" CONTENT "${_ATOMIC_WAIT_DEF_CONTENTS}")
+    generate_satellite_def("atomic_wait" "${D_SUFFIX}")
 
-    add_library(msvcp${D_SUFFIX}_atomic_wait SHARED "${_ATOMIC_WAIT_DEF_NAME}")
+    add_library(msvcp${D_SUFFIX}_atomic_wait SHARED "${CMAKE_BINARY_DIR}/msvcp_atomic_wait${D_SUFFIX}.def")
     target_link_libraries(msvcp${D_SUFFIX}_atomic_wait PRIVATE msvcp${D_SUFFIX}_atomic_wait_objects msvcp${D_SUFFIX}_satellite_objects msvcp${D_SUFFIX}_implib_objects "msvcp${D_SUFFIX}" "${TOOLSET_LIB}/vcruntime${D_SUFFIX}.lib" "${TOOLSET_LIB}/msvcrt${D_SUFFIX}.lib" "ucrt${D_SUFFIX}.lib" "advapi32.lib")
     set_target_properties(msvcp${D_SUFFIX}_atomic_wait PROPERTIES ARCHIVE_OUTPUT_NAME "msvcp140_atomic_wait${D_SUFFIX}${VCLIBS_SUFFIX}")
     set_target_properties(msvcp${D_SUFFIX}_atomic_wait PROPERTIES ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}")
-    set_target_properties(msvcp${D_SUFFIX}_atomic_wait PROPERTIES OUTPUT_NAME "${_ATOMIC_WAIT_OUTPUT_NAME}")
+    set_target_properties(msvcp${D_SUFFIX}_atomic_wait PROPERTIES OUTPUT_NAME "msvcp140${D_SUFFIX}_atomic_wait${VCLIBS_SUFFIX}")
     target_link_options(msvcp${D_SUFFIX}_atomic_wait PRIVATE ${link_options_${REL_OR_DBG}})
 
     # msvcp140_codecvt_ids.dll
@@ -635,7 +653,7 @@ function(add_stl_dlls D_SUFFIX REL_OR_DBG)
     add_library(msvcp${D_SUFFIX}_implib STATIC ${HEADERS})
     target_link_libraries(msvcp${D_SUFFIX}_implib stl_alias_objects msvcp${D_SUFFIX}_implib_objects)
     add_dependencies(msvcp${D_SUFFIX}_implib msvcp${D_SUFFIX} msvcp_1${D_SUFFIX} msvcp_2${D_SUFFIX} msvcp${D_SUFFIX}_atomic_wait msvcp${D_SUFFIX}_codecvt_ids)
-    set_target_properties(msvcp${D_SUFFIX}_implib PROPERTIES STATIC_LIBRARY_OPTIONS "/NOLOGO;/NODEFAULTLIB;/IGNORE:4006;$<TARGET_LINKER_FILE:msvcp${D_SUFFIX}>;$<TARGET_LINKER_FILE:msvcp_1${D_SUFFIX}>;$<TARGET_LINKER_FILE:msvcp_2${D_SUFFIX}>;$<TARGET_LINKER_FILE:msvcp${D_SUFFIX}_codecvt_ids>;$<TARGET_LINKER_FILE:msvcp${D_SUFFIX}_atomic_wait>")
+    set_target_properties(msvcp${D_SUFFIX}_implib PROPERTIES STATIC_LIBRARY_OPTIONS "/NOLOGO;/NODEFAULTLIB;/IGNORE:4006;$<TARGET_LINKER_FILE:msvcp${D_SUFFIX}>;$<TARGET_LINKER_FILE:msvcp_1${D_SUFFIX}>;$<TARGET_LINKER_FILE:msvcp_2${D_SUFFIX}>;$<TARGET_LINKER_FILE:msvcp${D_SUFFIX}_codecvt_ids>;$<TARGET_LINKER_FILE:msvcp${D_SUFFIX}_atomic_wait>;${VCLIBS_EXPLICIT_MACHINE}")
     set_target_properties(msvcp${D_SUFFIX}_implib PROPERTIES ARCHIVE_OUTPUT_NAME "msvcprt${D_SUFFIX}")
 endfunction()
 
@@ -653,6 +671,7 @@ function(add_stl_statics FLAVOR_SUFFIX REL_OR_DBG IDL_VALUE)
     target_compile_options(libcpmt${FLAVOR_SUFFIX} PRIVATE "$<$<COMPILE_LANGUAGE:CXX>:/EHsc>")
     target_link_libraries(libcpmt${FLAVOR_SUFFIX} PRIVATE Boost::math stl_alias_objects libcpmt${FLAVOR_SUFFIX}_eha)
     target_stl_compile_options(libcpmt${FLAVOR_SUFFIX} ${REL_OR_DBG})
+    set_target_properties(libcpmt${FLAVOR_SUFFIX} PROPERTIES STATIC_LIBRARY_OPTIONS "${VCLIBS_EXPLICIT_MACHINE}")
 endfunction()
 
 add_stl_statics("" Release 0)
@@ -662,6 +681,7 @@ add_stl_statics("d1" Debug 1)
 add_stl_statics("d0" Debug 0)
 
 add_library(stl_asan STATIC ${ASAN_SOURCES})
+set_target_properties(stl_asan PROPERTIES STATIC_LIBRARY_OPTIONS "${VCLIBS_EXPLICIT_MACHINE}")
 
 configure_file(set_environment.bat.in "${PROJECT_BINARY_DIR}/set_environment.bat" @ONLY)
 configure_file(set_environment.ps1.in "${PROJECT_BINARY_DIR}/set_environment.ps1" @ONLY)

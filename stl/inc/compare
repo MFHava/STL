@@ -13,7 +13,6 @@
 _EMIT_STL_WARNING(STL4038, "The contents of <compare> are available only with C++20 or later.");
 #else // ^^^ !_HAS_CXX20 / _HAS_CXX20 vvv
 #ifdef __cpp_lib_concepts
-#include <bit>
 #include <concepts>
 #else // ^^^ __cpp_lib_concepts / !__cpp_lib_concepts vvv
 #include <xtr1common>
@@ -27,8 +26,19 @@ _STL_DISABLE_CLANG_WARNINGS
 #undef new
 
 _STD_BEGIN
-using _Literal_zero = decltype(nullptr);
-using _Compare_t    = signed char;
+void _Literal_zero_is_expected();
+
+struct _Literal_zero {
+    template <class _Ty, enable_if_t<is_same_v<_Ty, int>, int> = 0>
+    consteval _Literal_zero(_Ty _Zero) noexcept {
+        // Can't use _STL_VERIFY because this is a core header
+        if (_Zero != 0) {
+            _Literal_zero_is_expected();
+        }
+    }
+};
+
+using _Compare_t = signed char;
 
 // These "pretty" enumerator names are safe since they reuse names of user-facing entities.
 enum class _Compare_eq : _Compare_t { equal = 0, equivalent = equal };
@@ -339,9 +349,9 @@ struct _Synth_three_way {
     template <class _Ty1, class _Ty2>
     _NODISCARD constexpr auto operator()(const _Ty1& _Left, const _Ty2& _Right) const
         requires requires {
-                     { _Left < _Right } -> _Boolean_testable;
-                     { _Right < _Left } -> _Boolean_testable;
-                 }
+            { _Left < _Right } -> _Boolean_testable;
+            { _Right < _Left } -> _Boolean_testable;
+        }
     {
         if constexpr (three_way_comparable_with<_Ty1, _Ty2>) {
             return _Left <=> _Right;
@@ -371,8 +381,8 @@ namespace _Strong_order {
 
     template <class _Ty1, class _Ty2>
     concept _Has_ADL = requires(_Ty1& _Left, _Ty2& _Right) {
-                           static_cast<strong_ordering>(strong_order(_Left, _Right)); // intentional ADL
-                       };
+        static_cast<strong_ordering>(strong_order(_Left, _Right)); // intentional ADL
+    };
 
     template <class _Ty1, class _Ty2>
     concept _Can_compare_three_way =
@@ -383,7 +393,7 @@ namespace _Strong_order {
         enum class _St { _None, _Adl, _Floating, _Three };
 
         template <class _Ty1, class _Ty2>
-        _NODISCARD static _CONSTEVAL _Choice_t<_St> _Choose() noexcept {
+        _NODISCARD static consteval _Choice_t<_St> _Choose() noexcept {
             if constexpr (!same_as<decay_t<_Ty1>, decay_t<_Ty2>>) {
                 return {_St::_None};
             } else if constexpr (_Has_ADL<_Ty1, _Ty2>) {
@@ -416,8 +426,8 @@ namespace _Strong_order {
                 using _Uint_type     = typename _Traits::_Uint_type;
                 using _Sint_type     = make_signed_t<_Uint_type>;
 
-                const auto _Left_uint  = _STD bit_cast<_Uint_type>(_Left);
-                const auto _Right_uint = _STD bit_cast<_Uint_type>(_Right);
+                const auto _Left_uint  = _Bit_cast<_Uint_type>(_Left);
+                const auto _Right_uint = _Bit_cast<_Uint_type>(_Right);
 
                 // 1. Ultra-fast path: equal representations are equal.
                 if (_Left_uint == _Right_uint) {
@@ -467,8 +477,8 @@ namespace _Weak_order {
 
     template <class _Ty1, class _Ty2>
     concept _Has_ADL = requires(_Ty1& _Left, _Ty2& _Right) {
-                           static_cast<weak_ordering>(weak_order(_Left, _Right)); // intentional ADL
-                       };
+        static_cast<weak_ordering>(weak_order(_Left, _Right)); // intentional ADL
+    };
 
     template <class _Ty1, class _Ty2>
     concept _Can_compare_three_way =
@@ -486,7 +496,7 @@ namespace _Weak_order {
         enum class _St { _None, _Adl, _Floating, _Three, _Strong };
 
         template <class _Ty1, class _Ty2>
-        _NODISCARD static _CONSTEVAL _Choice_t<_St> _Choose() noexcept {
+        _NODISCARD static consteval _Choice_t<_St> _Choose() noexcept {
             if constexpr (!same_as<decay_t<_Ty1>, decay_t<_Ty2>>) {
                 return {_St::_None};
             } else if constexpr (_Has_ADL<_Ty1, _Ty2>) {
@@ -523,8 +533,8 @@ namespace _Weak_order {
                 using _Uint_type     = typename _Traits::_Uint_type;
                 using _Sint_type     = make_signed_t<_Uint_type>;
 
-                auto _Left_uint  = _STD bit_cast<_Uint_type>(_Left);
-                auto _Right_uint = _STD bit_cast<_Uint_type>(_Right);
+                auto _Left_uint  = _Bit_cast<_Uint_type>(_Left);
+                auto _Right_uint = _Bit_cast<_Uint_type>(_Right);
 
                 // 1. Ultra-fast path: equal representations are equivalent.
                 if (_Left_uint == _Right_uint) {
@@ -593,8 +603,8 @@ namespace _Partial_order {
 
     template <class _Ty1, class _Ty2>
     concept _Has_ADL = requires(_Ty1& _Left, _Ty2& _Right) {
-                           static_cast<partial_ordering>(partial_order(_Left, _Right)); // intentional ADL
-                       };
+        static_cast<partial_ordering>(partial_order(_Left, _Right)); // intentional ADL
+    };
 
     template <class _Ty1, class _Ty2>
     concept _Can_compare_three_way =
@@ -615,7 +625,7 @@ namespace _Partial_order {
         enum class _St { _None, _Adl, _Three, _Weak, _Strong };
 
         template <class _Ty1, class _Ty2>
-        _NODISCARD static _CONSTEVAL _Choice_t<_St> _Choose() noexcept {
+        _NODISCARD static consteval _Choice_t<_St> _Choose() noexcept {
             if constexpr (!same_as<decay_t<_Ty1>, decay_t<_Ty2>>) {
                 return {_St::_None};
             } else if constexpr (_Has_ADL<_Ty1, _Ty2>) {
@@ -671,9 +681,9 @@ inline namespace _Cpos {
 
 template <class _Ty1, class _Ty2>
 concept _Can_fallback_eq_lt = requires(_Ty1& _Left, _Ty2& _Right) {
-                                  { _Left == _Right } -> _Boolean_testable;
-                                  { _Left < _Right } -> _Boolean_testable;
-                              };
+    { _Left == _Right } -> _Boolean_testable;
+    { _Left < _Right } -> _Boolean_testable;
+};
 
 template <class _Ty1, class _Ty2>
 concept _Can_strong_order = requires(_Ty1& _Left, _Ty2& _Right) { _STD strong_order(_Left, _Right); };
@@ -684,7 +694,7 @@ namespace _Compare_strong_order_fallback {
         enum class _St { _None, _Strong, _Fallback };
 
         template <class _Ty1, class _Ty2>
-        _NODISCARD static _CONSTEVAL _Choice_t<_St> _Choose() noexcept {
+        _NODISCARD static consteval _Choice_t<_St> _Choose() noexcept {
             if constexpr (!same_as<decay_t<_Ty1>, decay_t<_Ty2>>) {
                 return {_St::_None};
             } else if constexpr (_Can_strong_order<_Ty1, _Ty2>) {
@@ -734,7 +744,7 @@ namespace _Compare_weak_order_fallback {
         enum class _St { _None, _Weak, _Fallback };
 
         template <class _Ty1, class _Ty2>
-        _NODISCARD static _CONSTEVAL _Choice_t<_St> _Choose() noexcept {
+        _NODISCARD static consteval _Choice_t<_St> _Choose() noexcept {
             if constexpr (!same_as<decay_t<_Ty1>, decay_t<_Ty2>>) {
                 return {_St::_None};
             } else if constexpr (_Can_weak_order<_Ty1, _Ty2>) {
@@ -781,17 +791,17 @@ concept _Can_partial_order = requires(_Ty1& _Left, _Ty2& _Right) { _STD partial_
 namespace _Compare_partial_order_fallback {
     template <class _Ty1, class _Ty2>
     concept _Can_fallback_eq_lt_twice = requires(_Ty1& _Left, _Ty2& _Right) {
-                                            { _Left == _Right } -> _Boolean_testable;
-                                            { _Left < _Right } -> _Boolean_testable;
-                                            { _Right < _Left } -> _Boolean_testable;
-                                        };
+        { _Left == _Right } -> _Boolean_testable;
+        { _Left < _Right } -> _Boolean_testable;
+        { _Right < _Left } -> _Boolean_testable;
+    };
 
     class _Cpo {
     private:
         enum class _St { _None, _Partial, _Fallback };
 
         template <class _Ty1, class _Ty2>
-        _NODISCARD static _CONSTEVAL _Choice_t<_St> _Choose() noexcept {
+        _NODISCARD static consteval _Choice_t<_St> _Choose() noexcept {
             if constexpr (!same_as<decay_t<_Ty1>, decay_t<_Ty2>>) {
                 return {_St::_None};
             } else if constexpr (_Can_partial_order<_Ty1, _Ty2>) {

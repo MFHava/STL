@@ -8,28 +8,6 @@
 
 using namespace std;
 
-namespace detail {
-    static constexpr bool permissive() {
-        return false;
-    }
-
-    template <class>
-    struct DependentBase {
-        static constexpr bool permissive() {
-            return true;
-        }
-    };
-
-    template <class T>
-    struct Derived : DependentBase<T> {
-        static constexpr bool test() {
-            return permissive();
-        }
-    };
-} // namespace detail
-
-constexpr bool is_permissive = detail::Derived<int>::test();
-
 enum class IsNothrowConstructible : bool { Not, Yes };
 enum class IsNothrowConvertible : bool { Not, Yes };
 
@@ -144,18 +122,16 @@ constexpr void test_impl(Expected&& engaged, Expected&& unengaged) {
         }
     }
 
-    if constexpr (!is_permissive) { // TRANSITION, VSO-1734935
-        {
-            decltype(auto) result = forward<Expected>(engaged).transform(immov);
-            static_assert(is_same_v<decltype(result), expected<Immovable, int>>);
-            assert(result->v == 88);
-        }
-        {
-            decltype(auto) result = forward<Expected>(unengaged).transform(immov);
-            static_assert(is_same_v<decltype(result), expected<Immovable, int>>);
-            assert(!result);
-            assert(result.error() == 22);
-        }
+    {
+        decltype(auto) result = forward<Expected>(engaged).transform(immov);
+        static_assert(is_same_v<decltype(result), expected<Immovable, int>>);
+        assert(result->v == 88);
+    }
+    {
+        decltype(auto) result = forward<Expected>(unengaged).transform(immov);
+        static_assert(is_same_v<decltype(result), expected<Immovable, int>>);
+        assert(!result);
+        assert(result.error() == 22);
     }
 
     {
@@ -203,21 +179,19 @@ constexpr void test_impl(Expected&& engaged, Expected&& unengaged) {
         assert(result.error() == 66);
     }
 
-    if constexpr (!is_permissive) { // TRANSITION, VSO-1734935
-        {
-            decltype(auto) result = forward<Expected>(engaged).transform_error(immov);
-            static_assert(is_same_v<decltype(result), expected<Val, Immovable>>);
-            assert(result);
-            if constexpr (!is_void_v<Val>) {
-                assert(result->x == 11);
-            }
+    {
+        decltype(auto) result = forward<Expected>(engaged).transform_error(immov);
+        static_assert(is_same_v<decltype(result), expected<Val, Immovable>>);
+        assert(result);
+        if constexpr (!is_void_v<Val>) {
+            assert(result->x == 11);
         }
-        {
-            decltype(auto) result = forward<Expected>(unengaged).transform_error(immov);
-            static_assert(is_same_v<decltype(result), expected<Val, Immovable>>);
-            assert(!result);
-            assert(result.error().v == 88);
-        }
+    }
+    {
+        decltype(auto) result = forward<Expected>(unengaged).transform_error(immov);
+        static_assert(is_same_v<decltype(result), expected<Val, Immovable>>);
+        assert(!result);
+        assert(result.error().v == 88);
     }
 
     const auto to_expected_thingy = [](auto...) {
@@ -375,7 +349,153 @@ constexpr bool test() {
     return true;
 }
 
+template <class T, template <class...> class Tmpl>
+constexpr bool is_specialization_of = false;
+
+template <template <class...> class Tmpl, class... Args>
+constexpr bool is_specialization_of<Tmpl<Args...>, Tmpl> = true;
+
+template <class T>
+    requires is_specialization_of<remove_cvref_t<T>, expected>
+using expected_value_t = typename remove_cvref_t<T>::value_type;
+
+template <class T>
+    requires is_specialization_of<remove_cvref_t<T>, expected>
+using expected_error_t = typename remove_cvref_t<T>::error_type;
+
+template <class R>
+struct DefaultTransformer {
+    constexpr R operator()() const {
+        return R();
+    }
+
+    constexpr R operator()(auto&&) const {
+        return R();
+    }
+};
+
+template <class T>
+concept CanAndThen = is_specialization_of<remove_cvref_t<T>, expected> && requires(T&& t) {
+    forward<T>(t).and_then(DefaultTransformer<expected<void, expected_error_t<T>>>{});
+};
+
+template <class T>
+concept CanOrElse = is_specialization_of<remove_cvref_t<T>, expected> && requires(T&& t) {
+    forward<T>(t).or_else(DefaultTransformer<expected<expected_value_t<T>, char>>{});
+};
+
+template <class T>
+concept CanTransform = is_specialization_of<remove_cvref_t<T>, expected>
+                    && requires(T&& t) { forward<T>(t).transform(DefaultTransformer<expected_value_t<T>>{}); };
+
+template <class T>
+concept CanTransformError = is_specialization_of<remove_cvref_t<T>, expected> && requires(T&& t) {
+    forward<T>(t).transform_error(DefaultTransformer<expected_error_t<T>>{});
+};
+
+enum class HasMutCopy : bool { No, Yes };
+
+enum class HasConstCopy : bool { No, Yes };
+
+enum class HasMutMove : bool { No, Yes };
+
+enum class HasConstMove : bool { No, Yes };
+
+template <HasMutCopy MutCopyStatus, HasConstCopy ConstCopyStatus, HasMutMove MutMoveStatus,
+    HasConstMove ConstMoveStatus>
+struct State {
+    State() = default;
+    // clang-format off
+    State(State&) requires (static_cast<bool>(MutCopyStatus))           = default;
+    State(State&) requires (!static_cast<bool>(MutCopyStatus))          = delete;
+    State(const State&) requires (static_cast<bool>(ConstCopyStatus))   = default;
+    State(const State&) requires (!static_cast<bool>(ConstCopyStatus))  = delete;
+    State(State&&) requires (static_cast<bool>(MutMoveStatus))          = default;
+    State(State&&) requires (!static_cast<bool>(MutMoveStatus))         = delete;
+    State(const State&&) requires (!static_cast<bool>(ConstMoveStatus)) = delete;
+    // clang-format on
+
+    template <class U = State>
+        requires (!static_cast<bool>(ConstCopyStatus) && static_cast<bool>(ConstMoveStatus))
+    constexpr State(const type_identity_t<U>&&) noexcept {}
+
+    State& operator=(const State&) = default;
+    State& operator=(State&&)      = default;
+};
+
+template <int N>
+constexpr bool test_monadic_constraints_impl() {
+    constexpr bool MutCopyStatus   = static_cast<bool>(N & 0b0001);
+    constexpr bool ConstCopyStatus = static_cast<bool>(N & 0b0010);
+    constexpr bool MutMoveStatus   = static_cast<bool>(N & 0b0100);
+    constexpr bool ConstMoveStatus = static_cast<bool>(N & 0b1000);
+
+    using T = State<static_cast<HasMutCopy>(MutCopyStatus), static_cast<HasConstCopy>(ConstCopyStatus),
+        static_cast<HasMutMove>(MutMoveStatus), static_cast<HasConstMove>(ConstMoveStatus)>;
+
+    static_assert(is_constructible_v<T, T&> == MutCopyStatus);
+    static_assert(is_constructible_v<T, const T&> == ConstCopyStatus);
+    static_assert(is_constructible_v<T, T> == MutMoveStatus);
+    static_assert(is_constructible_v<T, const T> == ConstMoveStatus);
+
+    static_assert(CanAndThen<expected<int, T>&> == MutCopyStatus || ConstCopyStatus);
+    static_assert(CanAndThen<const expected<int, T>&> == ConstCopyStatus);
+    static_assert(CanAndThen<expected<int, T>> == MutMoveStatus || ConstCopyStatus || ConstMoveStatus);
+    static_assert(CanAndThen<const expected<int, T>> == ConstMoveStatus || ConstCopyStatus);
+
+    static_assert(CanAndThen<expected<void, T>&> == MutCopyStatus || ConstCopyStatus);
+    static_assert(CanAndThen<const expected<void, T>&> == ConstCopyStatus);
+    static_assert(CanAndThen<expected<void, T>> == MutMoveStatus || ConstCopyStatus || ConstMoveStatus);
+    static_assert(CanAndThen<const expected<void, T>> == ConstMoveStatus || ConstCopyStatus);
+
+    static_assert(CanOrElse<expected<T, char>&> == MutCopyStatus || ConstCopyStatus);
+    static_assert(CanOrElse<const expected<T, char>&> == ConstCopyStatus);
+    static_assert(CanOrElse<expected<T, char>> == MutMoveStatus || ConstCopyStatus || ConstMoveStatus);
+    static_assert(CanOrElse<const expected<T, char>> == ConstMoveStatus || ConstCopyStatus);
+
+    static_assert(CanTransform<expected<int, T>&> == MutCopyStatus || ConstCopyStatus);
+    static_assert(CanTransform<const expected<int, T>&> == ConstCopyStatus);
+    static_assert(CanTransform<expected<int, T>> == MutMoveStatus || ConstCopyStatus || ConstMoveStatus);
+    static_assert(CanTransform<const expected<int, T>> == ConstMoveStatus || ConstCopyStatus);
+
+    static_assert(CanTransform<expected<void, T>&> == MutCopyStatus || ConstCopyStatus);
+    static_assert(CanTransform<const expected<void, T>&> == ConstCopyStatus);
+    static_assert(CanTransform<expected<void, T>> == MutMoveStatus || ConstCopyStatus || ConstMoveStatus);
+    static_assert(CanTransform<const expected<void, T>> == ConstMoveStatus || ConstCopyStatus);
+
+    static_assert(CanTransformError<expected<T, char>&> == MutCopyStatus || ConstCopyStatus);
+    static_assert(CanTransformError<const expected<T, char>&> == ConstCopyStatus);
+    static_assert(CanTransformError<expected<T, char>> == MutMoveStatus || ConstCopyStatus || ConstMoveStatus);
+    static_assert(CanTransformError<const expected<T, char>> == ConstMoveStatus || ConstCopyStatus);
+
+    return true;
+}
+
+constexpr bool test_monadic_constraints() {
+    static_assert(test_monadic_constraints_impl<0b0000>());
+    static_assert(test_monadic_constraints_impl<0b0001>());
+    static_assert(test_monadic_constraints_impl<0b0010>());
+    static_assert(test_monadic_constraints_impl<0b0011>());
+    static_assert(test_monadic_constraints_impl<0b0100>());
+    static_assert(test_monadic_constraints_impl<0b0101>());
+    static_assert(test_monadic_constraints_impl<0b0110>());
+    static_assert(test_monadic_constraints_impl<0b0111>());
+    static_assert(test_monadic_constraints_impl<0b1000>());
+    static_assert(test_monadic_constraints_impl<0b1001>());
+    static_assert(test_monadic_constraints_impl<0b1010>());
+    static_assert(test_monadic_constraints_impl<0b1011>());
+    static_assert(test_monadic_constraints_impl<0b1100>());
+    static_assert(test_monadic_constraints_impl<0b1101>());
+    static_assert(test_monadic_constraints_impl<0b1110>());
+    static_assert(test_monadic_constraints_impl<0b1111>());
+
+    return true;
+}
+
 int main() {
     test();
     static_assert(test());
+
+    assert(test_monadic_constraints());
+    static_assert(test_monadic_constraints());
 }

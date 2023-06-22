@@ -250,6 +250,54 @@ constexpr bool test_one(Rng&& rng, Expected&& expected) {
         }
     }
 
+#if _HAS_CXX23
+    using ranges::const_iterator_t, ranges::const_sentinel_t;
+
+    // Validate view_interface::cbegin
+    STATIC_ASSERT(CanMemberCBegin<R>);
+    STATIC_ASSERT(CanMemberCBegin<const R&> == (range<const V> && const_invocable));
+    if (forward_range<V>) { // intentionally not if constexpr
+        const same_as<const_iterator_t<R>> auto ci = r.cbegin();
+        if (!is_empty) {
+            assert(*ci == *begin(expected));
+        }
+
+        if constexpr (copy_constructible<V>) {
+            auto r2                                     = r;
+            const same_as<const_iterator_t<R>> auto ci2 = r2.cbegin();
+            if (!is_empty) {
+                assert(*ci2 == *ci);
+            }
+        }
+
+        if constexpr (CanMemberCBegin<const R&>) {
+            const same_as<const_iterator_t<const R>> auto ci3 = as_const(r).cbegin();
+            if (!is_empty) {
+                assert(*ci3 == *ci);
+            }
+        }
+    }
+
+    // Validate view_interface::cend
+    STATIC_ASSERT(CanMemberCEnd<R>);
+    STATIC_ASSERT(CanMemberCEnd<const R&> == (range<const V> && const_invocable));
+    if (!is_empty) {
+        same_as<const_sentinel_t<R>> auto cs = r.cend();
+        STATIC_ASSERT(is_same_v<const_sentinel_t<R>, const_iterator_t<R>> == common_range<V>);
+        if constexpr (bidirectional_range<R> && common_range<R>) {
+            assert(*prev(cs) == *prev(end(expected)));
+        }
+
+        if constexpr (CanMemberCEnd<const R&>) {
+            same_as<const_sentinel_t<const R>> auto cs2 = as_const(r).cend();
+            STATIC_ASSERT(is_same_v<const_sentinel_t<const R>, const_iterator_t<const R>> == common_range<const V>);
+            if constexpr (bidirectional_range<const R> && common_range<const R>) {
+                assert(*prev(cs2) == *prev(end(expected)));
+            }
+        }
+    }
+#endif // _HAS_CXX23
+
     // Validate view_interface::data
     STATIC_ASSERT(!CanData<TV>);
     STATIC_ASSERT(!CanData<const TV>);
@@ -619,7 +667,7 @@ struct iterator_instantiator {
             assert((0 + I{}).base().peek() == nullptr);
             STATIC_ASSERT(NOEXCEPT_IDL0(2 + i));
 
-            auto vi = I{};
+            I vi{};
             assert(&(i += 5) == &i);
             assert(i.base().peek() == mutable_ints + 5);
             assert(&(vi += 0) == &vi);
@@ -809,6 +857,26 @@ void test_gh_1709() {
         test_assign.assign(b, e);
         assert((test_assign == vector{10, 20, 30, 40, 50}));
     }
+}
+
+// GH-3014 "<ranges>: list-initialization is misused"
+void test_gh_3014() { // COMPILE-ONLY
+    struct FwdRange {
+        int* begin() {
+            return nullptr;
+        }
+
+        test::init_list_not_constructible_iterator<int> begin() const {
+            return nullptr;
+        }
+
+        unreachable_sentinel_t end() const {
+            return {};
+        }
+    };
+
+    auto r                                           = FwdRange{} | views::transform(identity{});
+    [[maybe_unused]] decltype(as_const(r).begin()) i = r.begin(); // Check 'iterator(iterator<!Const> i)'
 }
 
 int main() {

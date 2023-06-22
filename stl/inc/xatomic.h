@@ -9,8 +9,9 @@
 #include <yvals_core.h>
 #if _STL_COMPILER_PREPROCESSOR
 
-#include _STL_INTRIN_HEADER
 #include <type_traits>
+
+#include _STL_INTRIN_HEADER
 
 #pragma pack(push, _CRT_PACKING)
 #pragma warning(push, _STL_WARNING_LEVEL)
@@ -100,7 +101,7 @@ enum memory_order {
 };
 #endif // _HAS_CXX20
 
-_EXPORT_STD /* TRANSITION, VSO-1592329 */ using _Atomic_counter_t = unsigned long;
+using _Atomic_counter_t = unsigned long;
 
 template <class _Integral, class _Ty>
 _NODISCARD volatile _Integral* _Atomic_address_as(_Ty& _Source) noexcept {

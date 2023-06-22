@@ -3,11 +3,6 @@
 
 #include <synchapi.h>
 
-// This must be as small as possible, because its contents are
-// injected into the msvcprt.lib and msvcprtd.lib import libraries.
-// Do not include or define anything else here.
-// In particular, basic_string must not be included here.
-
 // these declarations must be in sync with those in xthreads.h
 
 using _Smtx_t = void*;
@@ -34,6 +29,7 @@ int __cdecl _Smtx_try_lock_shared(_Smtx_t* smtx) { // try to lock shared mutex n
 }
 
 void __cdecl _Smtx_unlock_exclusive(_Smtx_t* smtx) { // unlock exclusive shared mutex
+    _Analysis_assume_lock_held_(*reinterpret_cast<PSRWLOCK>(smtx));
     ReleaseSRWLockExclusive(reinterpret_cast<PSRWLOCK>(smtx));
 }
 

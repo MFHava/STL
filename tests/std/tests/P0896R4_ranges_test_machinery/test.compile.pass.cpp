@@ -10,8 +10,6 @@
 
 using namespace std;
 
-int main() {} // COMPILE-ONLY
-
 using test::CanCompare, test::CanDifference, test::WrappedState, test::ProxyRef, test::to_bool;
 
 // Validate test::iterator and test::sentinel
@@ -205,9 +203,9 @@ STATIC_ASSERT(
 // Validate test::range
 template <class R>
 concept has_member_size = requires(const R& r) {
-                              typename ranges::range_size_t<R>;
-                              { r.size() } -> same_as<ranges::range_size_t<R>>;
-                          };
+    typename ranges::range_size_t<R>;
+    { r.size() } -> same_as<ranges::range_size_t<R>>;
+};
 
 using test::Sized, test::Common;
 

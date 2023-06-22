@@ -12,13 +12,15 @@
 #if !_HAS_CXX17
 _EMIT_STL_WARNING(STL4038, "The contents of <variant> are available only with C++17 or later.");
 #else // ^^^ !_HAS_CXX17 / _HAS_CXX17 vvv
+#if _HAS_CXX20
+#include <compare>
+#endif // _HAS_CXX20
 #include <exception>
 #include <initializer_list>
 #include <type_traits>
 #include <utility>
-#include <xmemory>
 #include <xsmf_control.h>
-#include <xstddef>
+#include <xutility>
 
 #pragma pack(push, _CRT_PACKING)
 #pragma warning(push, _STL_WARNING_LEVEL)
@@ -377,7 +379,7 @@ class _Variant_storage_<true, _First, _Rest...> { // Storage for variant alterna
 public:
     static constexpr size_t _Size = 1 + sizeof...(_Rest);
     union {
-        remove_const_t<_First> _Head;
+        remove_cv_t<_First> _Head;
         _Variant_storage<_Rest...> _Tail;
     };
 
@@ -412,7 +414,7 @@ class _Variant_storage_<false, _First, _Rest...> { // Storage for variant altern
 public:
     static constexpr size_t _Size = 1 + sizeof...(_Rest);
     union {
-        remove_const_t<_First> _Head;
+        remove_cv_t<_First> _Head;
         _Variant_storage<_Rest...> _Tail;
     };
 
@@ -457,7 +459,7 @@ public:
 // wrapper to enable minimal hats-in-variants support.
 template <class _Ty>
 struct _Variant_item {
-    remove_const_t<_Ty> _Item;
+    remove_cv_t<_Ty> _Item;
 
     template <class... _Types>
     constexpr _Variant_item(_Types&&... _Args) noexcept(is_nothrow_constructible_v<_Ty, _Types...>)
@@ -693,10 +695,12 @@ _NODISCARD constexpr _Variant_raw_visit_t<_Fn, _Storage> _Variant_raw_visit(
 template <class...>
 class _Variant_base;
 
+inline constexpr size_t _Schar_max_as_size = static_cast<unsigned char>(-1) / 2;
+inline constexpr size_t _Short_max_as_size = static_cast<unsigned short>(-1) / 2;
+
 template <size_t _Count>
 using _Variant_index_t = // signed so that conversion of -1 to size_t can cheaply sign extend
-    conditional_t<(_Count < static_cast<size_t>((numeric_limits<signed char>::max)())), signed char,
-        conditional_t<(_Count < static_cast<size_t>((numeric_limits<short>::max)())), short, int>>;
+    conditional_t<(_Count < _Schar_max_as_size), signed char, conditional_t<(_Count < _Short_max_as_size), short, int>>;
 
 template <class... _Types>
 struct _Variant_construct_visitor { // visitor that constructs the same alternative in a target _Variant_base as is
@@ -808,8 +812,9 @@ public:
     _CONSTEXPR20 void _Destroy() noexcept {
         // destroy the contained value
         // pre: _Idx == index()
-        if constexpr (_Idx != variant_npos && !is_trivially_destructible_v<_Meta_at_c<variant<_Types...>, _Idx>>) {
-            _STD _Destroy_in_place(_STD _Variant_raw_get<_Idx>(_Storage()));
+        using _Indexed_value_type = remove_cv_t<_Meta_at_c<variant<_Types...>, _Idx>>;
+        if constexpr (_Idx != variant_npos && !is_trivially_destructible_v<_Indexed_value_type>) {
+            _STD _Variant_raw_get<_Idx>(_Storage()).~_Indexed_value_type();
         }
     }
 
@@ -817,7 +822,8 @@ public:
         if constexpr (!conjunction_v<is_trivially_destructible<_Types>...>) {
             _STD _Variant_raw_visit(index(), _Storage(), [](auto _Ref) noexcept {
                 if constexpr (decltype(_Ref)::_Idx != variant_npos) {
-                    _STD _Destroy_in_place(_Ref._Val);
+                    using _Indexed_value_type = _Remove_cvref_t<decltype(_Ref._Val)>;
+                    _Ref._Val.~_Indexed_value_type();
                 }
             });
         }
@@ -961,9 +967,9 @@ class variant : private _SMF_control<_Variant_destroy_layer<_Types...>, _Types..
 public:
     static_assert(conjunction_v<is_object<_Types>..., negation<is_array<_Types>>..., is_destructible<_Types>...>,
         "variant<Types...> requires all of the Types to meet the Cpp17Destructible requirements "
-        "N4828 [variant.variant]/2.");
+        "(N4950 [variant.variant.general]/2).");
     static_assert(sizeof...(_Types) > 0,
-        "variant<> (with no template arguments) may not be instantiated (N4835 [variant.variant]/3).");
+        "variant<> (with no template arguments) may not be instantiated (N4950 [variant.variant.general]/3).");
     using _Mybase = _SMF_control<_Variant_destroy_layer<_Types...>, _Types...>;
 
     template <class _First = _Meta_front<variant>, enable_if_t<is_default_constructible_v<_First>, int> = 0>
@@ -1089,9 +1095,9 @@ public:
         // exchange the contained values if *this and _That hold the same alternative, otherwise exchange the values of
         // the variants themselves
         static_assert(conjunction_v<is_move_constructible<_Types>...>,
-            "variant<Types...>::swap requires all of the Types... to be move constructible. (N4835 [variant.swap]/1)");
+            "variant<Types...>::swap requires all of the Types... to be move constructible. (N4950 [variant.swap]/1)");
         static_assert(disjunction_v<negation<is_move_constructible<_Types>>..., conjunction<is_swappable<_Types>...>>,
-            "variant<Types...>::swap requires all of the Types... to be swappable. (N4835 [variant.swap]/1)");
+            "variant<Types...>::swap requires all of the Types... to be swappable. (N4950 [variant.swap]/2)");
         if constexpr (conjunction_v<_Is_trivially_swappable<_Types>...>) {
             using _BaseTy = _Variant_base<_Types...>;
             _STD swap(static_cast<_BaseTy&>(*this), static_cast<_BaseTy&>(_That));
@@ -1184,7 +1190,7 @@ _NODISCARD constexpr bool holds_alternative(const variant<_Types...>& _Var) noex
     // true iff _Var holds alternative _Ty
     constexpr size_t _Idx = _Meta_find_unique_index<variant<_Types...>, _Ty>::value;
     static_assert(_Idx != _Meta_npos, "holds_alternative<T>(const variant<Types...>&) requires T to occur exactly "
-                                      "once in Types. (N4835 [variant.get]/1)");
+                                      "once in Types. (N4950 [variant.get]/1)");
     return _Var.index() == _Idx;
 }
 
@@ -1234,7 +1240,7 @@ _NODISCARD constexpr decltype(auto) get(variant<_Types...>& _Var) {
     // access the contained value of _Var if its alternative _Ty is active
     constexpr size_t _Idx = _Meta_find_unique_index<variant<_Types...>, _Ty>::value;
     static_assert(_Idx < sizeof...(_Types),
-        "get<T>(variant<Types...>&) requires T to occur exactly once in Types. (N4835 [variant.get]/5)");
+        "get<T>(variant<Types...>&) requires T to occur exactly once in Types. (N4950 [variant.get]/5)");
     return _STD get<_Idx>(_Var);
 }
 _EXPORT_STD template <class _Ty, class... _Types>
@@ -1242,7 +1248,7 @@ _NODISCARD constexpr decltype(auto) get(variant<_Types...>&& _Var) {
     // access the contained value of _Var if its alternative _Ty is active
     constexpr size_t _Idx = _Meta_find_unique_index<variant<_Types...>, _Ty>::value;
     static_assert(_Idx < sizeof...(_Types),
-        "get<T>(variant<Types...>&&) requires T to occur exactly once in Types. (N4835 [variant.get]/5)");
+        "get<T>(variant<Types...>&&) requires T to occur exactly once in Types. (N4950 [variant.get]/5)");
     return _STD get<_Idx>(_STD move(_Var));
 }
 _EXPORT_STD template <class _Ty, class... _Types>
@@ -1250,7 +1256,7 @@ _NODISCARD constexpr decltype(auto) get(const variant<_Types...>& _Var) {
     // access the contained value of _Var if its alternative _Ty is active
     constexpr size_t _Idx = _Meta_find_unique_index<variant<_Types...>, _Ty>::value;
     static_assert(_Idx < sizeof...(_Types),
-        "get<T>(const variant<Types...>&) requires T to occur exactly once in Types. (N4835 [variant.get]/5)");
+        "get<T>(const variant<Types...>&) requires T to occur exactly once in Types. (N4950 [variant.get]/5)");
     return _STD get<_Idx>(_Var);
 }
 _EXPORT_STD template <class _Ty, class... _Types>
@@ -1258,7 +1264,7 @@ _NODISCARD constexpr decltype(auto) get(const variant<_Types...>&& _Var) {
     // access the contained value of _Var if its alternative _Ty is active
     constexpr size_t _Idx = _Meta_find_unique_index<variant<_Types...>, _Ty>::value;
     static_assert(_Idx < sizeof...(_Types),
-        "get<T>(const variant<Types...>&&) requires T to occur exactly once in Types. (N4835 [variant.get]/5)");
+        "get<T>(const variant<Types...>&&) requires T to occur exactly once in Types. (N4950 [variant.get]/5)");
     return _STD get<_Idx>(_STD move(_Var));
 }
 
@@ -1280,7 +1286,7 @@ _NODISCARD constexpr add_pointer_t<_Ty> get_if(variant<_Types...>* _Ptr) noexcep
     // get the address of *_Ptr's contained value if it holds alternative _Ty
     constexpr size_t _Idx = _Meta_find_unique_index<variant<_Types...>, _Ty>::value;
     static_assert(_Idx != _Meta_npos,
-        "get_if<T>(variant<Types...> *) requires T to occur exactly once in Types. (N4835 [variant.get]/9)");
+        "get_if<T>(variant<Types...> *) requires T to occur exactly once in Types. (N4950 [variant.get]/9)");
     return _STD get_if<_Idx>(_Ptr);
 }
 _EXPORT_STD template <class _Ty, class... _Types>
@@ -1288,7 +1294,7 @@ _NODISCARD constexpr add_pointer_t<const _Ty> get_if(const variant<_Types...>* _
     // get the address of *_Ptr's contained value if it holds alternative _Ty
     constexpr size_t _Idx = _Meta_find_unique_index<variant<_Types...>, _Ty>::value;
     static_assert(_Idx != _Meta_npos,
-        "get_if<T>(const variant<Types...> *) requires T to occur exactly once in Types. (N4835 [variant.get]/9)");
+        "get_if<T>(const variant<Types...> *) requires T to occur exactly once in Types. (N4950 [variant.get]/9)");
     return _STD get_if<_Idx>(_Ptr);
 }
 
@@ -1606,7 +1612,7 @@ constexpr _Variant_visit_result_t<_Callable, _As_variant<_Variants>...> visit(_C
     using _Ret = _Variant_visit_result_t<_Callable, _As_variant<_Variants>...>;
     static_assert(_Variant_all_visit_results_same<_Ret, _Callable, _Meta_list<>, _As_variant<_Variants>...>,
         "visit() requires the result of all potential invocations to have the same type and value category "
-        "(N4835 [variant.visit]/2).");
+        "(N4950 [variant.visit]/5).");
 
     return _STD _Visit_impl<_Size, _Ret, _ListOfIndexVectors>(
         static_cast<_Callable&&>(_Obj), static_cast<_Variants&&>(_Args)...);
@@ -1651,7 +1657,7 @@ constexpr _Ret visit(_Callable&& _Obj, _Variants&&... _Args) {
     if constexpr (!is_void_v<_Ret>) {
         static_assert(_Variant_all_visit_results_convertible<_Ret, _Callable, _Meta_list<>, _As_variant<_Variants>...>,
             "visit<R>() requires the result of all potential invocations to be implicitly convertible to R "
-            "(N4835 [variant.visit]/2).");
+            "(N4950 [variant.visit]/5).");
     }
 
     return _STD _Visit_impl<_Size, _Ret, _ListOfIndexVectors>(

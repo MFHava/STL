@@ -21,8 +21,6 @@
 using std::output_iterator_tag, std::input_iterator_tag, std::forward_iterator_tag, std::bidirectional_iterator_tag,
     std::random_access_iterator_tag, std::contiguous_iterator_tag;
 
-int main() {} // COMPILE-ONLY
-
 void test_LWG_3470() {
     // LWG-3470 relaxed the "convertible-to-non-slicing" requirements to allow this non-slicing case
     int a[]                 = {1, 2, 3};
@@ -972,13 +970,13 @@ namespace test_subrange {
 
     template <class R>
     concept HasMemberEmpty = requires(std::remove_reference_t<R> const r) {
-                                 { r.empty() } -> same_as<bool>;
-                             };
+        { r.empty() } -> same_as<bool>;
+    };
 
     template <class R>
     concept HasMemberSize = requires(std::remove_reference_t<R> const r) {
-                                { r.size() } -> std::integral;
-                            };
+        { r.size() } -> std::integral;
+    };
 
     // Validate default template arguments: second defaults to first, and third defaults to subrange_kind::sized iff
     // sized_sentinel_for<second, first>.
@@ -1037,6 +1035,15 @@ namespace test_subrange {
         STATIC_ASSERT(range<Subrange>);
         STATIC_ASSERT(HasMemberEmpty<Subrange const>);
         STATIC_ASSERT(!copyable<I> || range<Subrange const&>);
+
+#if _HAS_CXX23 // Validate cbegin/cend
+        if constexpr (ranges::input_range<Subrange>) {
+            STATIC_ASSERT(CanMemberCBegin<Subrange>);
+            STATIC_ASSERT(CanMemberCBegin<const Subrange> == ranges::input_range<const Subrange&>);
+            STATIC_ASSERT(CanMemberCEnd<Subrange>);
+            STATIC_ASSERT(CanMemberCEnd<const Subrange> == ranges::input_range<const Subrange&>);
+        }
+#endif // _HAS_CXX23
 
         // Validate size
         STATIC_ASSERT(sized == HasMemberSize<Subrange>);

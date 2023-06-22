@@ -105,15 +105,16 @@ namespace Concurrency {
             }
 
             struct _Task_scheduler_main_block {
-                _Task_scheduler_main_block() = default;
-                _Task_scheduler_main_block(const _Task_scheduler_main_block&) = delete;
+                _Task_scheduler_main_block()                                             = default;
+                _Task_scheduler_main_block(const _Task_scheduler_main_block&)            = delete;
                 _Task_scheduler_main_block& operator=(const _Task_scheduler_main_block&) = delete;
                 ~_Task_scheduler_main_block() noexcept { // block shutdown of the CRT until std::async shutdown has
                                                          // completed
                     _STD unique_lock<_STD mutex> _Lck(_Task_cv_mutex);
                     _Task_cv.wait(_Lck, [] { return _Outstanding_tasks == 0; });
                 }
-            } _Task_scheduler_main_block_instance;
+            };
+            _Task_scheduler_main_block _Task_scheduler_main_block_instance;
 #endif // CRTDLL2
 
             void CALLBACK _Task_scheduler_callback(PTP_CALLBACK_INSTANCE _Pci, PVOID _Args, PTP_WORK) noexcept {

@@ -25,6 +25,10 @@ _STL_DISABLE_CLANG_WARNINGS
 #pragma push_macro("new")
 #undef new
 
+// TRANSITION, non-_Ugly attribute tokens
+#pragma push_macro("msvc")
+#undef msvc
+
 _STD_BEGIN
 #if _HAS_CXX17
 #define _REQUIRE_PARALLEL_LVALUE_ITERATOR(_Iter)                                                                     \
@@ -93,7 +97,7 @@ namespace ranges {
             constexpr bool _Is_sized1 = sized_sentinel_for<_Se, _It>;
             constexpr bool _Is_sized2 = sized_sentinel_for<_OSe, _Out>;
             if constexpr (_Iter_copy_cat<_It, _Out>::_Bitcopy_constructible
-                          && _Sized_or_unreachable_sentinel_for<_Se, _It> //
+                          && _Sized_or_unreachable_sentinel_for<_Se, _It>
                           && _Sized_or_unreachable_sentinel_for<_OSe, _Out>) {
                 if constexpr (_Is_sized1 && _Is_sized2) {
                     return _Copy_memcpy_common(_IFirst, _RANGES next(_IFirst, _STD move(_ILast)), _OFirst,
@@ -530,15 +534,14 @@ namespace ranges {
 
         // clang-format off
         template <class _Ty, class... _Types>
-            requires requires(void* _Void_ptr, _Types&&... _Args) {
-                ::new (_Void_ptr) _Ty(static_cast<_Types&&>(_Args)...);
+            requires requires(_Ty* _Ptr, _Types&&... _Args) {
+                ::new (static_cast<void*>(_Ptr)) _Ty(static_cast<_Types&&>(_Args)...); // per LWG-3888
             }
         constexpr _Ty* operator()(_Ty* _Location, _Types&&... _Args) const
-            noexcept(noexcept(::new (const_cast<void*>(static_cast<const volatile void*>(_Location)))
+            noexcept(noexcept(::new (static_cast<void*>(_Location))
                     _Ty(_STD forward<_Types>(_Args)...))) /* strengthened */ {
             // clang-format on
-            _MSVC_CONSTEXPR return ::new (const_cast<void*>(static_cast<const volatile void*>(_Location)))
-                _Ty(_STD forward<_Types>(_Args)...);
+            _MSVC_CONSTEXPR return ::new (static_cast<void*>(_Location)) _Ty(_STD forward<_Types>(_Args)...);
         }
     };
 
@@ -752,7 +755,7 @@ namespace ranges {
 
 _EXPORT_STD template <class _NoThrowFwdIt, class _Diff>
 _NoThrowFwdIt uninitialized_default_construct_n(_NoThrowFwdIt _First, const _Diff _Count_raw) {
-    // default-initialize all elements in [_First, _First + _Count_raw)
+    // default-initialize all elements in [_First, _First + _Count)
     using _Ty                      = _Iter_value_t<_NoThrowFwdIt>;
     _Algorithm_int_t<_Diff> _Count = _Count_raw;
     if (_Count <= 0) {
@@ -886,7 +889,7 @@ namespace ranges {
 
 _EXPORT_STD template <class _NoThrowFwdIt, class _Diff>
 _NoThrowFwdIt uninitialized_value_construct_n(_NoThrowFwdIt _First, const _Diff _Count_raw) {
-    // value-initialize all elements in [_First, _First + _Count_raw)
+    // value-initialize all elements in [_First, _First + _Count)
     _Algorithm_int_t<_Diff> _Count = _Count_raw;
     if (_Count <= 0) {
         return _First;
@@ -898,7 +901,7 @@ _NoThrowFwdIt uninitialized_value_construct_n(_NoThrowFwdIt _First, const _Diff 
 
 _EXPORT_STD template <class _ExPo, class _NoThrowFwdIt, class _Diff, _Enable_if_execution_policy_t<_ExPo> = 0>
 _NoThrowFwdIt uninitialized_value_construct_n(
-    _ExPo&& _Exec, _NoThrowFwdIt _First, const _Diff _Count_raw) noexcept; // terminates
+    _ExPo&& _Exec, _NoThrowFwdIt _First, _Diff _Count_raw) noexcept; // terminates
 
 #ifdef __cpp_lib_concepts
 namespace ranges {
@@ -935,6 +938,16 @@ namespace ranges {
 #endif // __cpp_lib_concepts
 #endif // _HAS_CXX17
 
+#if _HAS_CXX20
+template <class _PtrTy>
+_NODISCARD void* _Voidify_unfancy(_PtrTy _Ptr) noexcept {
+    if constexpr (is_pointer_v<_PtrTy>) {
+        return _Ptr;
+    } else {
+        return _STD addressof(*_Ptr);
+    }
+}
+#endif // _HAS_CXX20
 
 #if _HAS_DEPRECATED_RAW_STORAGE_ITERATOR
 _EXPORT_STD template <class _OutIt, class _Ty>
@@ -957,12 +970,12 @@ public:
     }
 
     raw_storage_iterator& operator=(const _Ty& _Val) { // construct value designated by stored iterator
-        _Construct_in_place(*_Next, _Val);
+        _STD _Construct_in_place(const_cast<_Remove_cvref_t<decltype(*_Next)>&>(*_Next), _Val);
         return *this;
     }
 
     raw_storage_iterator& operator=(_Ty&& _Val) { // construct value designated by stored iterator
-        _Construct_in_place(*_Next, _STD move(_Val));
+        _STD _Construct_in_place(const_cast<_Remove_cvref_t<decltype(*_Next)>&>(*_Next), _STD move(_Val));
         return *this;
     }
 
@@ -985,7 +998,6 @@ private:
     _OutIt _Next;
 };
 #endif // _HAS_DEPRECATED_RAW_STORAGE_ITERATOR
-
 
 #if _HAS_AUTO_PTR_ETC
 _EXPORT_STD template <class _Ty>
@@ -1095,7 +1107,6 @@ public:
     using element_type = void;
 };
 #endif // _HAS_AUTO_PTR_ETC
-
 
 _EXPORT_STD class bad_weak_ptr : public exception { // exception type for invalid use of expired weak_ptr object
 public:
@@ -1211,11 +1222,7 @@ public:
     _Ref_count_resource(_Resource _Px, _Dx _Dt)
         : _Ref_count_base(), _Mypair(_One_then_variadic_args_t{}, _STD move(_Dt), _Px) {}
 
-#ifdef __EDG__ // TRANSITION, VSO-1292293
-    ~_Ref_count_resource() noexcept override {} // TRANSITION, should be non-virtual
-#else // ^^^ workaround / no workaround vvv
     ~_Ref_count_resource() noexcept override = default; // TRANSITION, should be non-virtual
-#endif // ^^^ no workaround ^^^
 
     void* _Get_deleter(const type_info& _Typeid) const noexcept override {
 #if _HAS_STATIC_RTTI
@@ -1249,11 +1256,7 @@ public:
         : _Ref_count_base(),
           _Mypair(_One_then_variadic_args_t{}, _STD move(_Dt), _One_then_variadic_args_t{}, _Ax, _Px) {}
 
-#ifdef __EDG__ // TRANSITION, VSO-1292293
-    ~_Ref_count_resource_alloc() noexcept override {} // TRANSITION, should be non-virtual
-#else // ^^^ workaround / no workaround vvv
     ~_Ref_count_resource_alloc() noexcept override = default; // TRANSITION, should be non-virtual
-#endif // ^^^ no workaround ^^^
 
     void* _Get_deleter(const type_info& _Typeid) const noexcept override {
 #if _HAS_STATIC_RTTI
@@ -1503,24 +1506,24 @@ struct _SP_convertible<_Yty, _Uty[_Ext]> : is_convertible<_Yty (*)[_Ext], _Uty (
 
 template <class _Yty, class _Ty>
 struct _SP_pointer_compatible : is_convertible<_Yty*, _Ty*>::type {
-    // N4659 [util.smartptr.shared]/5 "a pointer type Y* is said to be compatible
-    // with a pointer type T* " "when either Y* is convertible to T* ..."
+    // N4950 [util.smartptr.shared.general]/6 "a pointer type Y* is said to be compatible
+    // with a pointer type T* when either Y* is convertible to T* ..."
 };
 template <class _Uty, size_t _Ext>
 struct _SP_pointer_compatible<_Uty[_Ext], _Uty[]> : true_type {
-    // N4659 [util.smartptr.shared]/5 "... or Y is U[N] and T is cv U[]."
+    // N4950 [util.smartptr.shared.general]/6 "... or Y is U[N] and T is cv U[]."
 };
 template <class _Uty, size_t _Ext>
 struct _SP_pointer_compatible<_Uty[_Ext], const _Uty[]> : true_type {
-    // N4659 [util.smartptr.shared]/5 "... or Y is U[N] and T is cv U[]."
+    // N4950 [util.smartptr.shared.general]/6 "... or Y is U[N] and T is cv U[]."
 };
 template <class _Uty, size_t _Ext>
 struct _SP_pointer_compatible<_Uty[_Ext], volatile _Uty[]> : true_type {
-    // N4659 [util.smartptr.shared]/5 "... or Y is U[N] and T is cv U[]."
+    // N4950 [util.smartptr.shared.general]/6 "... or Y is U[N] and T is cv U[]."
 };
 template <class _Uty, size_t _Ext>
 struct _SP_pointer_compatible<_Uty[_Ext], const volatile _Uty[]> : true_type {
-    // N4659 [util.smartptr.shared]/5 "... or Y is U[N] and T is cv U[]."
+    // N4950 [util.smartptr.shared.general]/6 "... or Y is U[N] and T is cv U[]."
 };
 
 template <class _Ux>
@@ -1876,7 +1879,12 @@ _NODISCARD bool operator==(const shared_ptr<_Ty1>& _Left, const shared_ptr<_Ty2>
 #if _HAS_CXX20
 _EXPORT_STD template <class _Ty1, class _Ty2>
 _NODISCARD strong_ordering operator<=>(const shared_ptr<_Ty1>& _Left, const shared_ptr<_Ty2>& _Right) noexcept {
+#if !defined(__EDG__) && !defined(__clang__) // TRANSITION, DevCom-10334808
+    using _Common_ptr_t = decltype(false ? _Left.get() : _Right.get());
+    return static_cast<_Common_ptr_t>(_Left.get()) <=> static_cast<_Common_ptr_t>(_Right.get());
+#else // ^^^ workaround / no workaround vvv
     return _Left.get() <=> _Right.get();
+#endif // ^^^ no workaround ^^^
 }
 #else // ^^^ _HAS_CXX20 / !_HAS_CXX20 vvv
 template <class _Ty1, class _Ty2>
@@ -2084,25 +2092,25 @@ public:
     explicit _Ref_count_obj2(_Types&&... _Args) : _Ref_count_base() {
 #if _HAS_CXX20
         if constexpr (sizeof...(_Types) == 1 && (is_same_v<_For_overwrite_tag, remove_cvref_t<_Types>> && ...)) {
-            _Default_construct_in_place(_Storage._Value);
+            _STD _Default_construct_in_place(_Storage._Value);
             ((void) _Args, ...);
         } else
 #endif // _HAS_CXX20
         {
-            _Construct_in_place(_Storage._Value, _STD forward<_Types>(_Args)...);
+            _STD _Construct_in_place(_Storage._Value, _STD forward<_Types>(_Args)...);
         }
     }
 
     ~_Ref_count_obj2() noexcept override { // TRANSITION, should be non-virtual
         // nothing to do, _Storage._Value was already destroyed in _Destroy
 
-        // N4849 [class.dtor]/7:
+        // N4950 [class.dtor]/7:
         // "A defaulted destructor for a class X is defined as deleted if:
         // X is a union-like class that has a variant member with a non-trivial destructor"
     }
 
     union {
-        _Wrap<_Ty> _Storage;
+        _Wrap<remove_cv_t<_Ty>> _Storage;
     };
 
 private:
@@ -2204,12 +2212,12 @@ struct _NODISCARD _Uninitialized_rev_destroying_backout {
 
     template <class... _Types>
     void _Emplace_back(_Types&&... _Vals) { // construct a new element at *_Last and increment
-        _Construct_in_place(*_Last, _STD forward<_Types>(_Vals)...);
+        _STD _Construct_in_place(*_Last, _STD forward<_Types>(_Vals)...);
         ++_Last;
     }
 
     void _Emplace_back_for_overwrite() {
-        _Default_construct_in_place(*_Last);
+        _STD _Default_construct_in_place(*_Last);
         ++_Last;
     }
 
@@ -2353,13 +2361,13 @@ public:
 
 private:
     union {
-        _Wrap<_Element_type> _Storage; // flexible array must be last member
+        _Wrap<remove_cv_t<_Element_type>> _Storage; // flexible array must be last member
     };
 
     ~_Ref_count_unbounded_array() noexcept override { // TRANSITION, should be non-virtual
         // nothing to do, _Ty is trivially destructible
 
-        // See N4849 [class.dtor]/7.
+        // See N4950 [class.dtor]/7.
     }
 
     void _Destroy() noexcept override { // destroy managed resource
@@ -2401,13 +2409,13 @@ private:
     size_t _Size;
 
     union {
-        _Wrap<_Element_type> _Storage; // flexible array must be last member
+        _Wrap<remove_cv_t<_Element_type>> _Storage; // flexible array must be last member
     };
 
     ~_Ref_count_unbounded_array() noexcept override { // TRANSITION, should be non-virtual
         // nothing to do, _Storage was already destroyed in _Destroy
 
-        // See N4849 [class.dtor]/7.
+        // See N4950 [class.dtor]/7.
     }
 
     void _Destroy() noexcept override { // destroy managed resource
@@ -2438,18 +2446,20 @@ public:
     }
 
     union {
-        _Wrap<_Ty> _Storage;
+        _Wrap<remove_cv_t<_Ty>> _Storage;
     };
 
 private:
     ~_Ref_count_bounded_array() noexcept override { // TRANSITION, should be non-virtual
         // nothing to do, _Storage was already destroyed in _Destroy
 
-        // See N4849 [class.dtor]/7.
+        // See N4950 [class.dtor]/7.
     }
 
     void _Destroy() noexcept override { // destroy managed resource
-        _Destroy_in_place(_Storage); // not _Storage._Value, see N4849 [expr.prim.id.dtor]
+        // not _Storage._Value as _Ty is an array type (not a class type or a scalar type),
+        // and thus cannot be used as a pseudo-destructor (N4950 [expr.prim.id.dtor]).
+        _Destroy_in_place(_Storage);
     }
 
     void _Delete_this() noexcept override { // destroy self
@@ -2490,7 +2500,7 @@ private:
     ~_Ref_count_obj_alloc3() noexcept override { // TRANSITION, should be non-virtual
         // nothing to do; _Storage._Value already destroyed by _Destroy()
 
-        // See N4849 [class.dtor]/7.
+        // See N4950 [class.dtor]/7.
     }
 
     void _Destroy() noexcept override { // destroy managed resource
@@ -2677,7 +2687,7 @@ private:
     ~_Ref_count_unbounded_array_alloc() noexcept override { // TRANSITION, should be non-virtual
         // nothing to do; _Storage._Value already destroyed by _Destroy()
 
-        // See N4849 [class.dtor]/7.
+        // See N4950 [class.dtor]/7.
     }
 
     void _Destroy() noexcept override { // destroy managed resource
@@ -2737,7 +2747,7 @@ private:
     ~_Ref_count_bounded_array_alloc() noexcept override { // TRANSITION, should be non-virtual
         // nothing to do; _Storage._Value already destroyed by _Destroy()
 
-        // See N4849 [class.dtor]/7.
+        // See N4950 [class.dtor]/7.
     }
 
     void _Destroy() noexcept override { // destroy managed resource
@@ -2774,7 +2784,7 @@ struct _NODISCARD _Global_delete_guard {
     _Refc* _Target;
 
     ~_Global_delete_guard() {
-        // While this branch is technically unnecessary because N4849 [new.delete.single]/17 requires
+        // While this branch is technically unnecessary because N4950 [new.delete.single]/16 requires
         // `::operator delete(nullptr)` to be a no-op, it's here to help optimizers see that after
         // `_Guard._Target = nullptr;`, this destructor can be eliminated.
         if (_Target) {
@@ -2930,10 +2940,10 @@ _NODISCARD_SMART_PTR_ALLOC enable_if_t<is_bounded_array_v<_Ty>, shared_ptr<_Ty>>
     _Alblock _Rebound(_Al);
     _Alloc_construct_ptr _Constructor{_Rebound};
     _Constructor._Allocate();
-    ::new (_Voidify_iter(_Constructor._Ptr)) _Refc(_Al);
+    ::new (_STD _Voidify_unfancy(_Constructor._Ptr)) _Refc(_Al);
     shared_ptr<_Ty> _Ret;
     const auto _Ptr = static_cast<remove_extent_t<_Ty>*>(_Constructor._Ptr->_Storage._Value);
-    _Ret._Set_ptr_rep_and_enable_shared(_Ptr, _Unfancy(_Constructor._Release()));
+    _Ret._Set_ptr_rep_and_enable_shared(_Ptr, _STD _Unfancy(_Constructor._Release()));
     return _Ret;
 }
 
@@ -2946,10 +2956,10 @@ _NODISCARD_SMART_PTR_ALLOC enable_if_t<is_bounded_array_v<_Ty>, shared_ptr<_Ty>>
     _Alblock _Rebound(_Al);
     _Alloc_construct_ptr _Constructor{_Rebound};
     _Constructor._Allocate();
-    ::new (_Voidify_iter(_Constructor._Ptr)) _Refc(_Al, _Val);
+    ::new (_STD _Voidify_unfancy(_Constructor._Ptr)) _Refc(_Al, _Val);
     shared_ptr<_Ty> _Ret;
     const auto _Ptr = static_cast<remove_extent_t<_Ty>*>(_Constructor._Ptr->_Storage._Value);
-    _Ret._Set_ptr_rep_and_enable_shared(_Ptr, _Unfancy(_Constructor._Release()));
+    _Ret._Set_ptr_rep_and_enable_shared(_Ptr, _STD _Unfancy(_Constructor._Release()));
     return _Ret;
 }
 
@@ -2964,9 +2974,9 @@ _NODISCARD_SMART_PTR_ALLOC enable_if_t<!is_unbounded_array_v<_Ty>, shared_ptr<_T
         _Alblock _Rebound(_Al);
         _Alloc_construct_ptr _Constructor{_Rebound};
         _Constructor._Allocate();
-        ::new (_Voidify_iter(_Constructor._Ptr)) _Refc(_Al, _For_overwrite_tag{});
+        ::new (_STD _Voidify_unfancy(_Constructor._Ptr)) _Refc(_Al, _For_overwrite_tag{});
         const auto _Ptr = static_cast<remove_extent_t<_Ty>*>(_Constructor._Ptr->_Storage._Value);
-        _Ret._Set_ptr_rep_and_enable_shared(_Ptr, _Unfancy(_Constructor._Release()));
+        _Ret._Set_ptr_rep_and_enable_shared(_Ptr, _STD _Unfancy(_Constructor._Release()));
     } else {
         // make a shared_ptr to non-array object
         using _Refoa   = _Ref_count_obj_alloc3<remove_cv_t<_Ty>, _Alloc>;
@@ -2974,9 +2984,9 @@ _NODISCARD_SMART_PTR_ALLOC enable_if_t<!is_unbounded_array_v<_Ty>, shared_ptr<_T
         _Alblock _Rebound(_Al);
         _Alloc_construct_ptr<_Alblock> _Constructor{_Rebound};
         _Constructor._Allocate();
-        _Construct_in_place(*_Constructor._Ptr, _Al, _For_overwrite_tag{});
+        _STD _Construct_in_place(*_Constructor._Ptr, _Al, _For_overwrite_tag{});
         const auto _Ptr = reinterpret_cast<_Ty*>(_STD addressof(_Constructor._Ptr->_Storage._Value));
-        _Ret._Set_ptr_rep_and_enable_shared(_Ptr, _Unfancy(_Constructor._Release()));
+        _Ret._Set_ptr_rep_and_enable_shared(_Ptr, _STD _Unfancy(_Constructor._Release()));
     }
 
     return _Ret;
@@ -2994,7 +3004,7 @@ class weak_ptr : public _Ptr_base<_Ty> { // class for pointer to reference count
 public:
 #ifndef _M_CEE_PURE
     // When a constructor is converting from weak_ptr<_Ty2> to weak_ptr<_Ty>, the below type trait intentionally asks
-    // whether it would be possible to static_cast from _Ty* to const _Ty2*; see N4901 [expr.static.cast]/11.
+    // whether it would be possible to static_cast from _Ty* to const _Ty2*; see N4950 [expr.static.cast]/12.
 
     // Primary template, the value is used when the substitution fails.
     template <class _Ty2, class = const _Ty2*>
@@ -3154,7 +3164,6 @@ private:
     mutable weak_ptr<_Ty> _Wptr;
 };
 
-
 _EXPORT_STD template <class _Ty>
 struct default_delete { // default deleter for unique_ptr
     constexpr default_delete() noexcept = default;
@@ -3261,16 +3270,15 @@ public:
 
     template <class _Dx2 = _Dx, enable_if_t<is_move_assignable_v<_Dx2>, int> = 0>
     _CONSTEXPR23 unique_ptr& operator=(unique_ptr&& _Right) noexcept {
-        if (this != _STD addressof(_Right)) {
-            reset(_Right.release());
-            _Mypair._Get_first() = _STD forward<_Dx>(_Right._Mypair._Get_first());
-        }
+        reset(_Right.release());
+        _Mypair._Get_first() = _STD forward<_Dx>(_Right._Mypair._Get_first());
         return *this;
     }
 
     _CONSTEXPR23 void swap(unique_ptr& _Right) noexcept {
-        _Swap_adl(_Mypair._Myval2, _Right._Mypair._Myval2);
-        _Swap_adl(_Mypair._Get_first(), _Right._Mypair._Get_first());
+        using _STD swap;
+        swap(_Mypair._Myval2, _Right._Mypair._Myval2); // intentional ADL
+        swap(_Mypair._Get_first(), _Right._Mypair._Get_first()); // intentional ADL
     }
 
     _CONSTEXPR23 ~unique_ptr() noexcept {
@@ -3336,10 +3344,8 @@ public:
 
     template <class _Uty, class _Is_nullptr = is_same<_Uty, nullptr_t>>
     using _Enable_ctor_reset =
-        enable_if_t<is_same_v<_Uty, pointer> //
-                        || _Is_nullptr::value //
-                        || (is_same_v<pointer, element_type*> //
-                            && is_pointer_v<_Uty> //
+        enable_if_t<is_same_v<_Uty, pointer> || _Is_nullptr::value
+                        || (is_same_v<pointer, element_type*> && is_pointer_v<_Uty>
                             && is_convertible_v<remove_pointer_t<_Uty> (*)[], element_type (*)[]>),
             int>;
 
@@ -3407,8 +3413,9 @@ public:
     }
 
     _CONSTEXPR23 void swap(unique_ptr& _Right) noexcept {
-        _Swap_adl(_Mypair._Myval2, _Right._Mypair._Myval2);
-        _Swap_adl(_Mypair._Get_first(), _Right._Mypair._Get_first());
+        using _STD swap;
+        swap(_Mypair._Myval2, _Right._Mypair._Myval2); // intentional ADL
+        swap(_Mypair._Get_first(), _Right._Mypair._Get_first()); // intentional ADL
     }
 
     _CONSTEXPR23 ~unique_ptr() noexcept {
@@ -3458,7 +3465,6 @@ private:
 
     _Compressed_pair<_Dx, pointer> _Mypair;
 };
-
 
 _EXPORT_STD template <class _Ty, class... _Types, enable_if_t<!is_array_v<_Ty>, int> = 0>
 _NODISCARD_SMART_PTR_ALLOC _CONSTEXPR23 unique_ptr<_Ty> make_unique(_Types&&... _Args) { // make a unique_ptr
@@ -3997,6 +4003,10 @@ public:
         store(_STD move(_Value));
     }
 
+    void operator=(nullptr_t) noexcept {
+        store(nullptr);
+    }
+
     ~atomic() {
         const auto _Rep = this->_Repptr._Unsafe_load_relaxed();
         if (_Rep) {
@@ -4167,19 +4177,27 @@ using _Pointer_of_or = typename _Pointer_of_or_helper<_Ty, _Uty>::type;
 // TRANSITION, requires expression support
 template <class _SmartPtr, class _Sp, class _Pointer, class... _ArgsT>
 concept _Resettable_pointer = requires(_SmartPtr& _Smart_ptr, _Pointer _Ptr, _ArgsT&&... _Args) {
-                                  _Smart_ptr.reset(static_cast<_Sp>(_Ptr), _STD forward<_ArgsT>(_Args)...);
-                              };
+    _Smart_ptr.reset(static_cast<_Sp>(_Ptr), _STD forward<_ArgsT>(_Args)...);
+};
 
 _EXPORT_STD template <class _SmartPtr, class _Pointer, class... _ArgsT>
 class out_ptr_t {
     static_assert(!_Is_specialization_v<_SmartPtr, shared_ptr> || sizeof...(_ArgsT) != 0,
-        "out_ptr_t with shared_ptr requires a deleter (N4892 [out.ptr.t]/3)");
+        "out_ptr_t with shared_ptr requires a deleter (N4950 [out.ptr.t]/3)");
 
 public:
     explicit out_ptr_t(_SmartPtr& _Smart_ptr_, _ArgsT... _Args_) noexcept(
         is_nothrow_constructible_v<tuple<_ArgsT...>, _ArgsT...>) /* strengthened */
         : _Smart_ptr(_Smart_ptr_),
-          _Mypair(_One_then_variadic_args_t{}, tuple<_ArgsT...>{_STD forward<_ArgsT>(_Args_)...}) {}
+          _Mypair(_One_then_variadic_args_t{}, tuple<_ArgsT...>{_STD forward<_ArgsT>(_Args_)...}) {
+        constexpr bool _Is_resettable = requires { _Smart_ptr.reset(); }; // TRANSITION, DevCom-10291456
+        if constexpr (_Is_resettable) {
+            _Smart_ptr.reset();
+        } else {
+            static_assert(is_constructible_v<_SmartPtr>, "the adapted pointer type must be default constructible.");
+            _Smart_ptr = _SmartPtr();
+        }
+    }
 
     out_ptr_t(const out_ptr_t&) = delete;
 
@@ -4194,7 +4212,7 @@ public:
                 if constexpr (_Resettable_pointer<_SmartPtr, _Sp, _Pointer, _ArgsT...>) {
                     _Smart_ptr.reset(static_cast<_Sp>(_Get_ptr()), _STD forward<_ArgsT>(_Args_)...);
                 } else {
-                    static_assert(is_constructible_v<_SmartPtr, _Sp, _ArgsT...>, "(N4892 [out.ptr.t]/9.3)");
+                    static_assert(is_constructible_v<_SmartPtr, _Sp, _ArgsT...>, "(N4950 [out.ptr.t]/9.3)");
                     _Smart_ptr = _SmartPtr(static_cast<_Sp>(_Get_ptr()), _STD forward<_ArgsT>(_Args_)...);
                 }
             },
@@ -4209,7 +4227,7 @@ public:
         requires (!is_same_v<_Pointer, void*>)
     {
         static_assert(is_pointer_v<_Pointer>, "conversion of out_ptr_t<Smart, Pointer, Args...> to void** requires "
-                                              "Pointer to be a raw pointer (N4892 [out.ptr.t]/13)");
+                                              "Pointer to be a raw pointer (N4950 [out.ptr.t]/13)");
         return reinterpret_cast<void**>(_STD addressof(_Get_ptr()));
     }
 
@@ -4238,7 +4256,7 @@ _NODISCARD auto out_ptr(_SmartPtr& _Smart_ptr, _ArgsT&&... _Args) {
 _EXPORT_STD template <class _SmartPtr, class _Pointer, class... _ArgsT>
 class inout_ptr_t {
     static_assert(!_Is_specialization_v<_SmartPtr, shared_ptr>,
-        "inout_ptr_t doesn't work with shared_ptr (N4892 [inout.ptr.t]/3)");
+        "inout_ptr_t doesn't work with shared_ptr (N4950 [inout.ptr.t]/3)");
 
 private:
     _NODISCARD static auto _Get_ptr_from_smart(_SmartPtr& _Smart_ptr) noexcept
@@ -4278,7 +4296,7 @@ public:
                 } else if constexpr (_Resettable_pointer<_SmartPtr, _Sp, _Pointer, _ArgsT...>) {
                     _Smart_ptr.reset(static_cast<_Sp>(_Get_ptr()), _STD forward<_ArgsT>(_Args_)...);
                 } else {
-                    static_assert(is_constructible_v<_SmartPtr, _Sp, _ArgsT...>, "(N4892 [inout.ptr.t]/11.4)");
+                    static_assert(is_constructible_v<_SmartPtr, _Sp, _ArgsT...>, "(N4950 [inout.ptr.t]/11.4)");
                     _Smart_ptr = _SmartPtr(static_cast<_Sp>(_Get_ptr()), _STD forward<_ArgsT>(_Args_)...);
                 }
             },
@@ -4293,7 +4311,7 @@ public:
         requires (!is_same_v<_Pointer, void*>)
     {
         static_assert(is_pointer_v<_Pointer>, "conversion of inout_ptr_t<Smart, Pointer, Args...> to void** requires "
-                                              "Pointer to be a raw pointer (N4892 [inout.ptr.t]/15)");
+                                              "Pointer to be a raw pointer (N4950 [inout.ptr.t]/15)");
         return reinterpret_cast<void**>(_STD addressof(_Get_ptr()));
     }
 
@@ -4337,6 +4355,10 @@ namespace _DEPRECATE_TR1_NAMESPACE tr1 {
 #endif // _HAS_TR1_NAMESPACE
 
 _STD_END
+
+// TRANSITION, non-_Ugly attribute tokens
+#pragma pop_macro("msvc")
+
 #pragma pop_macro("new")
 _STL_RESTORE_CLANG_WARNINGS
 #pragma warning(pop)

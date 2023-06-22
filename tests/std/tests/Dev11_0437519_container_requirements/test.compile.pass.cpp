@@ -1,8 +1,6 @@
 // Copyright (c) Microsoft Corporation.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-int main() {} // COMPILE-ONLY
-
 #define STATIC_ASSERT(...) static_assert(__VA_ARGS__, #__VA_ARGS__)
 
 // This test program verifies all of the container requirements for the Standard Library containers,
@@ -831,7 +829,7 @@ void check_all_container_requirements() {
     test_container_swap<Tag>();
     // Copy Assignment is verified in the Allocator-Aware Container Requirements
     test_container_size<Tag>();
-};
+}
 
 
 //
@@ -3006,7 +3004,7 @@ DEFINE_TEST_SPECIALIZATION(
 //
 //
 
-// Adhoc tests for exception specifications of std::vector<bool, Alloc> (LWG-3778)
+// Ad hoc tests for exception specifications of std::vector<bool, Alloc> (LWG-3778)
 template <class Alloc>
 void assert_vector_bool_noexcept_impl() {
     using vec_bool = std::vector<bool, Alloc>;
@@ -3050,6 +3048,17 @@ void assert_container() {
     check_all_specific_requirements<Tag>();
 }
 
+// MapLike<K, V&> is squirrelly, but appears to be permitted.
+template <template <class...> class MapLike>
+void check_reference_as_mapped_type() {
+    double dbl = 3.14;
+
+    MapLike<int, double&> ml;
+    ml.emplace(10, dbl);
+
+    STATIC_ASSERT(std::is_same_v<decltype(ml.find(10)->second), double&>);
+}
+
 void assert_all() {
     assert_container<tag_deque>();
     assert_container<tag_forward_list>();
@@ -3065,4 +3074,9 @@ void assert_all() {
     assert_container<tag_unordered_multimap>();
     assert_container<tag_unordered_multiset>();
     assert_container<tag_unordered_set>();
+
+    check_reference_as_mapped_type<std::map>();
+    check_reference_as_mapped_type<std::multimap>();
+    check_reference_as_mapped_type<std::unordered_map>();
+    check_reference_as_mapped_type<std::unordered_multimap>();
 }

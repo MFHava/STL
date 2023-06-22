@@ -115,12 +115,12 @@ public:
         __PURE_APPDOMAIN_GLOBAL static int _Id_cnt;
     };
 
-    class _Locimp;
+    struct _Facet_guard;
 
     class _CRTIMP2_PURE_IMPORT facet : public _Facet_base, public _Crt_new_delete {
         // base class for all locale facets, performs reference counting
     private:
-        friend struct _Facet_guard;
+        friend _Facet_guard;
 
     public:
         static size_t __CLRCALL_OR_CDECL _Getcat(const facet** = nullptr, const locale* = nullptr) {
@@ -257,7 +257,18 @@ public:
         }
     }
 
+#pragma warning(push)
+#pragma warning(disable : 26495) // Variable 'std::locale::_Ptr' is uninitialized.
+                                 // Always initialize a member variable (type.6).
+
+    // We must not explicitly initialize _Ptr here; we rely on it maintaining the value
+    // previously created in its storage. To be precise:
+    // In locale0.cpp, locale::_Init() uses True Placement New at classic_locale's address,
+    // and classic_locale is constructed from the _Noinit enumerator of type _Uninitialized.
+    // The sequencing is highly unusual; the True Placement New happens before the _Uninitialized construction,
+    // so while _Ptr here formally has indeterminate value, we expect it to actually keep the previous value.
     locale(_Uninitialized) {} // defer construction
+#pragma warning(pop)
 
     locale(const locale& _Right) noexcept : _Ptr(_Right._Ptr) {
         _Ptr->_Incref();

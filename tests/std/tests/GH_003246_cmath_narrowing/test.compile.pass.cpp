@@ -3,11 +3,11 @@
 
 #include <cmath>
 
-int main() {} // COMPILE-ONLY
-
 // Ensure the compiler doesn't warn about narrowing long double to double in <cmath> GENERIC_MATH2 templates
-#define TEST(meow) \
-    long double test_##meow(long double x) { return std::meow(x, 1); }
+#define TEST(meow)                           \
+    long double test_##meow(long double x) { \
+        return std::meow(x, 1);              \
+    }
 
 TEST(atan2)
 TEST(hypot)

@@ -20,9 +20,9 @@ concept CanSize = requires(R& r) { ranges::size(r); };
 
 template <class R>
 concept CanTakeDrop = requires(R r) {
-                          forward<R>(r) | views::take(1);
-                          forward<R>(r) | views::drop(1);
-                      };
+    forward<R>(r) | views::take(1);
+    forward<R>(r) | views::drop(1);
+};
 
 struct non_default {
     int value{};
@@ -252,6 +252,16 @@ constexpr void test_common(T val, B bound = unreachable_sentinel) {
         assert(cmp_equal(last - first, rng.size()));
         static_assert(noexcept(last - first)); // strengthened
     }
+
+    const same_as<ranges::const_iterator_t<R>> auto cfirst = rng.cbegin();
+    assert(cfirst == first);
+    const same_as<ranges::const_sentinel_t<R>> auto clast = rng.cend();
+    if constexpr (ranges::common_range<R>) {
+        assert(clast == last);
+        assert(cmp_equal(clast - cfirst, rng.size()));
+    } else {
+        static_assert(same_as<remove_const_t<decltype(clast)>, unreachable_sentinel_t>);
+    }
 }
 
 struct move_tester {
@@ -276,15 +286,6 @@ struct forward_tester {
 struct tuple_tester {
     forward_tester y;
     forward_tester z;
-
-#ifdef __clang__ // TRANSITION, Clang needs to implement P0960R3
-#ifdef __cpp_aggregate_paren_init
-#error Remove this workaround
-#else // ^^^ Workaround is useless / workaround is useful vvv
-    template <class T, class U>
-    constexpr tuple_tester(T&& a, U&& b) : y{forward<T>(a)}, z{forward<U>(b)} {}
-#endif // __cpp_aggregate_paren_init
-#endif // __clang__
 };
 
 constexpr bool test() {
@@ -324,6 +325,17 @@ constexpr bool test() {
     }
     return true;
 }
+
+// Check LWG-3875
+static_assert(CanViewRepeat<string, long long>);
+static_assert(CanViewRepeat<string, unsigned long long>);
+static_assert(CanViewRepeat<string, _Signed128>);
+static_assert(
+    !CanViewRepeat<string, _Unsigned128>); // _Unsigned128 does not satisfy 'integer-like-with-usable-difference-type'
+
+// Check GH-3392
+static_assert(ranges::range<decltype(views::repeat('3', 100ull) | views::take(3))>);
+static_assert(ranges::range<decltype(views::repeat('3', 100ull) | views::drop(3))>);
 
 int main() {
     assert(test());

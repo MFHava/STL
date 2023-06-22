@@ -19,8 +19,6 @@
 #include <utility>
 #include <vector>
 
-int main() {} // COMPILE-ONLY
-
 // lets INSTANTIATE macro be used for types that aren't default constructible.
 // Doesn't actually instantiate the type if not default constructible,
 // but it will inspect the type, which is the true purpose.
@@ -126,7 +124,7 @@ void type_traits_test_impl() {
     TRAIT_V(is_null_pointer, T);
     TRAIT_V(is_union, T);
     TRAIT_V(is_class, T);
-    TRAIT_V(is_function, T); // from xstddef
+    TRAIT_V(is_function, T);
     TRAIT_V(is_fundamental, T);
     TRAIT_V(is_arithmetic, T); // from xtr1common
     TRAIT_V(is_object, T);
