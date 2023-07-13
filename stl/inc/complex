@@ -941,22 +941,22 @@ public:
     template<size_t I>
     friend
     constexpr _Ty& get(_Complex_base& z) noexcept {
-        static_assert(I < 2);
+        static_assert(I < 2, "Invalid index");
         return z._Val[I];
     }
     template<size_t I>
     constexpr const _Ty& get(const _Complex_base& z) noexcept {
-        static_assert(I < 2);
+        static_assert(I < 2, "Invalid index");
         return z._Val[I];
     }
     template<size_t I>
     constexpr _Ty&& get(_Complex_base&& z) noexcept {
-        static_assert(I < 2);
+        static_assert(I < 2, "Invalid index");
         return move(z._Val[I]);
     }
     template<size_t I>
     constexpr const _Ty&& get(const _Complex_base&& z) noexcept {
-        static_assert(I < 2);
+        static_assert(I < 2, "Invalid index");
         return move(z._Val[I]);
     }
 #endif
@@ -2259,7 +2259,7 @@ struct tuple_size<complex<T>> : integral_constant<size_t, 2> {};
 
 template<size_t I, class T>
 struct tuple_element<I, complex<T>> {
-    static_assert(I < 2);
+    static_assert(I < 2, "Invalid index");
     using type = T;
 };
 #endif
