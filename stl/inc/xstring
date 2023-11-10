@@ -1377,6 +1377,7 @@ public:
         _Count = _Clamp_suffix_size(_Off, _Count);
         return basic_string_view(_Mydata + _Off, _Count);
     }
+    _NODISCARD constexpr basic_string_view subview(const size_type _Off = 0, size_type _Count = npos) const { return substr(_Off, _Count); }
 
     constexpr bool _Equal(const basic_string_view _Right) const noexcept {
         return _Traits_equal<_Traits>(_Mydata, _Mysize, _Right._Mydata, _Right._Mysize);
@@ -4625,6 +4626,9 @@ public:
         return basic_string{_STD move(*this), _Off, _Count};
     }
 #endif // _HAS_CXX23
+    _NODISCARD _CONSTEXPR20 basic_string_view<_Elem, _Traits> subview(const size_type _Off = 0, size_type _Count = npos) const {
+        return static_cast<basic_string_view<_Elem, _Traits>>(*this).subview(_Off, _Count);
+    }
 
     _CONSTEXPR20 bool _Equal(const basic_string& _Right) const noexcept {
         // compare [0, size()) with _Right for equality
