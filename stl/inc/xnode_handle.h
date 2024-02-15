@@ -62,6 +62,17 @@ struct _Node_handle_set_base { // set-specific node handle behavior
     }
 };
 
+template <class _Derived_type, class _ValueTy>
+struct _Node_handle_list_base { //list-specific node handle behavior
+    using value_type = _ValueTy;
+
+    value_type& value() const noexcept /* strengthened */ {
+        const auto& _Self = static_cast<const _Derived_type&>(*this);
+        return _Self._Getptr()->_Myval;
+    }
+};
+
+
 template <class _Node, class _Alloc, template <class...> class _Base, class... _Types>
 class _Node_handle : public _Base<_Node_handle<_Node, _Alloc, _Base, _Types...>, _Types...> {
     // storage for a node from one of the node-based standard containers
