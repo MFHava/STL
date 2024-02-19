@@ -62,11 +62,15 @@ void no_allocation_scope(Func func) {
     allocation_allowed = true;
 }
 
-template<typename List>
-bool test_equal(const List & l, std::initializer_list<int> ilist) {
+bool test_equal(const std::list<int, tracked_allocator<int>> & l, std::initializer_list<int> ilist) {
     //check bidirectional to ensure all internal pointers are correctly set up
     return std::equal(l.begin(), l.end(), ilist.begin(), ilist.end())
         && std::equal(l.rbegin(), l.rend(), std::make_reverse_iterator(ilist.end()), std::make_reverse_iterator(ilist.begin()));
+}
+
+bool test_equal(const std::forward_list<int, tracked_allocator<int>> & l, std::initializer_list<int> ilist) {
+    //check bidirectional to ensure all internal pointers are correctly set up
+    return std::equal(l.begin(), l.end(), ilist.begin(), ilist.end());
 }
 
 void test_list() {
@@ -119,17 +123,66 @@ void test_list() {
         const auto nh{l.extract(l.begin())}; //must be correctly deallocated
         assert(!nh.empty());
     }
+
     assert(allocation_count == 0);
 }
 
+template<typename Allocator>
+auto size(const std::forward_list<int, Allocator> & l) -> std::size_t {
+    return static_cast<std::size_t>(std::distance(l.begin(), l.end()));
+}
+
 void test_forward_list() {
-    //TODO: init std::forward_list with elements
-    //TODO: try extract at front
-    //TODO: try extract at back
-    //TODO: try extract in the middle
-    //TODO: try insert at front
-    //TODO: try insert at back
-    //TODO: try insert at middle
+    {
+        std::forward_list<int, tracked_allocator<int>> l{0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
+        assert(size(l) == 10);
+
+        no_allocation_scope([&] {
+            auto nh_front{l.extract_after(l.before_begin())};
+            assert(nh_front.value() == 0);
+            assert(size(l) == 9);
+            assert(test_equal(l, {1, 2, 3, 4, 5, 6, 7, 8, 9}));
+
+            auto nh_back{l.extract_after(std::next(l.begin(), static_cast<std::ptrdiff_t>(size(l)) - 2))};
+            assert(nh_back.value() == 9);
+            assert(size(l) == 8);
+            assert(test_equal(l, {1, 2, 3, 4, 5, 6, 7, 8}));
+
+            auto nh_middle{l.extract_after(std::next(l.begin(), 3))};
+            assert(nh_middle.value() == 5);
+            assert(size(l) == 7);
+            assert(test_equal(l, {1, 2, 3, 4, 6, 7, 8}));
+
+
+            l.insert_after(l.before_begin(), std::move(nh_back));
+            assert(nh_back.empty());
+            assert(size(l) == 8);
+            assert(test_equal(l, {9, 1, 2, 3, 4, 6, 7, 8}));
+
+            l.insert_after(std::next(l.begin(), static_cast<std::ptrdiff_t>(size(l)) - 1), std::move(nh_front));
+            assert(nh_front.empty());
+            assert(size(l) == 9);
+            assert(test_equal(l, {9, 1, 2, 3, 4, 6, 7, 8, 0}));
+
+            l.insert_after(std::next(l.begin(), 3), std::move(nh_middle));
+            assert(nh_middle.empty());
+            assert(size(l) == 10);
+            assert(test_equal(l, {9, 1, 2, 3, 5, 4, 6, 7, 8, 0}));
+        });
+
+        std::forward_list<int, tracked_allocator<int>> empty;
+        no_allocation_scope([&] {
+            auto nh{l.extract_after(l.before_begin())};
+            assert(nh.value() == 9);
+            empty.insert_after(empty.before_begin(), std::move(nh));
+            assert(test_equal(empty, {9}));
+        });
+
+        const auto nh{l.extract_after(l.before_begin())}; //must be correctly deallocated
+        assert(!nh.empty());
+    }
+
+    assert(allocation_count == 0);
 }
 
 int main() {

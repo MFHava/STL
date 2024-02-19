@@ -10,6 +10,7 @@
 #include <xmemory>
 
 #if _HAS_CXX17
+#include <xnode_handle.h>
 #include <xpolymorphic_allocator.h>
 #endif // _HAS_CXX17
 
@@ -248,10 +249,17 @@ struct _Flist_node { // forward_list node
     _Flist_node& operator=(const _Flist_node&) = delete;
 
     template <class _Alnode>
+    static void _Freenode0(_Alnode& _Al, _Nodeptr _Ptr) noexcept {
+        // destroy pointer members in _Ptr and deallocate with _Al
+        static_assert(is_same_v<typename _Alnode::value_type, _Flist_node>, "Bad _Freenode0 call");
+        _Destroy_in_place(_Ptr->_Next);
+        allocator_traits<_Alnode>::deallocate(_Al, _Ptr, 1);
+    }
+
+    template <class _Alnode>
     static void _Freenode(_Alnode& _Al, _Nodeptr _Pnode) noexcept {
-        _Destroy_in_place(_Pnode->_Next);
         allocator_traits<_Alnode>::destroy(_Al, _STD addressof(_Pnode->_Myval));
-        _Al.deallocate(_Pnode, 1);
+        _Freenode0(_Al, _Pnode);
     }
 };
 
@@ -539,6 +547,7 @@ public:
     using const_iterator            = _Flist_const_iterator<_Scary_val>;
     using _Unchecked_iterator       = _Flist_unchecked_iterator<_Scary_val>;
     using _Unchecked_const_iterator = _Flist_unchecked_const_iterator<_Scary_val>;
+    using node_type = _Node_handle<_Node, _Alloc, _Node_handle_list_base, _Ty>;
 
     forward_list() noexcept(is_nothrow_default_constructible_v<_Alnode>) // strengthened
         : _Mypair(_Zero_then_variadic_args_t{}) {
@@ -1036,6 +1045,26 @@ public:
         return _Insert_range_after(_Where._Ptr, _RANGES _Ubegin(_Range), _RANGES _Uend(_Range));
     }
 #endif // _HAS_CXX23
+
+    node_type extract_after(const_iterator _Where) {
+        auto prev{_Where._Ptr};
+        auto ptr{prev->_Next};
+        prev->_Next = ptr->_Next;
+        ptr->_Next = nullptr; //just for safety
+        return node_type::_Make(ptr, _Getal());
+    }
+
+    iterator insert_after(const const_iterator _Where, node_type&& _Handle) {
+#if _ITERATOR_DEBUG_LEVEL == 2
+        _STL_VERIFY(get_allocator() == _Handle._Getal(), "node handle allocator incompatible for insert");
+#endif // _ITERATOR_DEBUG_LEVEL == 2
+        if(_Handle.empty()) return end();
+        auto prev{_Where._Ptr};
+        auto ptr{_Handle._Release()};
+        ptr->_Next = prev->_Next;
+        prev->_Next = ptr;
+        return _Make_iter(ptr);
+    }
 
 private:
     void _Erase_after(_Nodeptr _Pnode) noexcept { // erase element after _Pnode
