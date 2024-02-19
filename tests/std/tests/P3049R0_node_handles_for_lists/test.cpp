@@ -11,6 +11,7 @@
 
 bool allocation_allowed{true};
 std::size_t allocation_count{0};
+std::size_t construct_count{0};
 
 template <class T>
 struct tracked_allocator {
@@ -37,12 +38,14 @@ struct tracked_allocator {
     void construct(U* ptr, Args&&... args) {
         std::allocator<T> alloc;
         std::allocator_traits<std::allocator<T>>::construct(alloc, ptr, std::forward<Args>(args)...);
+        ++construct_count;
     }
 
     template <class U>
     void destroy(U* ptr) {
         std::allocator<T> alloc;
         std::allocator_traits<std::allocator<T>>::destroy(alloc, ptr);
+        --construct_count;
     }
 
     template <class U>
@@ -125,6 +128,7 @@ void test_list() {
     }
 
     assert(allocation_count == 0);
+    assert(construct_count == 0);
 }
 
 template<typename Allocator>
@@ -136,6 +140,7 @@ void test_forward_list() {
     {
         std::forward_list<int, tracked_allocator<int>> l{0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
         assert(size(l) == 10);
+        assert(allocation_count >= size(l));
 
         no_allocation_scope([&] {
             auto nh_front{l.extract_after(l.before_begin())};
@@ -183,6 +188,7 @@ void test_forward_list() {
     }
 
     assert(allocation_count == 0);
+    assert(construct_count == 0);
 }
 
 int main() {
