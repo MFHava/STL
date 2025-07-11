@@ -166,6 +166,9 @@ struct pair;
 _EXPORT_STD template <class _Ty, size_t _Size>
 class array;
 
+_EXPORT_STD template<class _Ty, size_t _Extents>
+class span;
+
 _EXPORT_STD template <class _Tuple>
 struct tuple_size;
 
@@ -224,6 +227,9 @@ constexpr bool _Tuple_like_non_subrange_impl<pair<_Ty1, _Ty2>> = true;
 
 template <class _Ty, size_t _Size>
 constexpr bool _Tuple_like_non_subrange_impl<array<_Ty, _Size>> = true;
+
+template <class _Ty, size_t _Extents>
+constexpr bool _Tuple_like_non_subrange_impl<span<_Ty, _Extents>> = _Extents != static_cast<size_t>(-1); //dynamic_extents
 
 template <class _Ty>
 concept _Tuple_like_non_subrange = _Tuple_like_non_subrange_impl<remove_cvref_t<_Ty>>;

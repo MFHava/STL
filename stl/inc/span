@@ -11,10 +11,9 @@
 #if !_HAS_CXX20
 _EMIT_STL_WARNING(STL4038, "The contents of <span> are available only with C++20 or later.");
 #else // ^^^ !_HAS_CXX20 / _HAS_CXX20 vvv
-#include <compare>
 #include <cstddef>
-#include <type_traits>
 #include <xutility>
+#include <tuple>
 
 #pragma pack(push, _CRT_PACKING)
 #pragma warning(push, _STL_WARNING_LEVEL)
@@ -557,6 +556,27 @@ span(_It, _End) -> span<remove_reference_t<iter_reference_t<_It>>>;
 
 template <_RANGES contiguous_range _Rng>
 span(_Rng&&) -> span<remove_reference_t<_RANGES range_reference_t<_Rng>>>;
+
+
+template<class _Ty, size_t _Extent>
+struct tuple_size<span<_Ty, _Extent>> : integral_constant<size_t, _Extent> {
+    static_assert(_Extent != dynamic_extent);
+};
+
+template<size_t _Index, class _Ty, size_t _Extent>
+struct tuple_element<_Index, span<_Ty, _Extent>> {
+    static_assert(_Extent != dynamic_extent);
+    static_assert(_Index < _Extent);
+    using type = _Ty;
+};
+
+template<size_t _Index, class _Ty, size_t _Extent>
+constexpr
+_Ty& get(span<_Ty, _Extent> s) noexcept {
+    static_assert(_Extent != dynamic_extent);
+    static_assert(_Index < _Extent);
+    return s[_Index];
+}
 
 #ifdef __cpp_lib_byte
 // [span.objectrep] Views of object representation
